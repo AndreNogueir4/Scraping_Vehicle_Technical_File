@@ -1,7 +1,6 @@
-import aiohttp
 from lxml import html
 from logger.logger import get_logger, save_log
-from utils.request_with_retry import request_with_proxy
+from utils.get_clean_html import get_clean_html
 
 REFERENCE = 'fichacompleta'
 logger = get_logger('scraper_version_and_years', reference=REFERENCE)
@@ -36,33 +35,12 @@ async def fetch_version_and_years(automaker, model):
         'Priority': 'u=0, i',
     }
 
-    async with aiohttp.ClientSession(headers=headers) as session:
-        try:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    html_content = await response.text()
-                else:
-                    raise Exception(f'Status ruim: {response.status}')
-
-        except Exception as e:
-            logger.warning(f'⚠️ Erro sem proxy: {e}')
-            await save_log('WARNING', f'⚠️ Erro sem proxy: {e}', reference=REFERENCE)
-            logger.info('Tentando buscar com proxy')
-            html_content = await request_with_proxy(url, headers=headers)
-
-            if not html_content:
-                logger.error('❌ Falha mesmo usando proxy.')
-                await save_log('ERROR', '❌ Falha mesmo usando proxy.', reference=REFERENCE)
-                return []
+    html_content = await get_clean_html(url, headers=headers, reference=REFERENCE)
+    if not html_content:
+        return []
 
     try:
         tree = html.fromstring(html_content)
-        error_message = tree.xpath('//text()')
-
-        if any("Digite o código:" in msg for msg in error_message):
-            logger.warning('⚠️ Deu ruim, mensagem de erro encontrada!')
-            await save_log('WARNING', '⚠️ Erro detectado na página.', reference=REFERENCE)
-            return []
 
         versions = {}
         for element in tree.xpath('//div/a'):
