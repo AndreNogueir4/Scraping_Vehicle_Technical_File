@@ -1,3 +1,4 @@
+import unicodedata
 from lxml import html
 from logger.logger import get_logger, save_log
 from utils.get_clean_html import get_clean_html
@@ -7,7 +8,15 @@ logger = get_logger('scraper_version_and_years', reference=REFERENCE)
 
 words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
+def remove_accents(text):
+    normalized_text = unicodedata.normalize('NFKD', text)
+    text_without_accents = ''.join(c for c in normalized_text if not unicodedata.combining(c))
+    return text_without_accents
+
 async def fetch_version_and_years(automaker, model):
+    automaker = automaker.replace(' ', '-')
+    model = remove_accents(model)
+
     url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
     logger.info(f'Iniciando busca pelas versoes e anos para modelo: {model}')
     await save_log('INFO', f'Iniciando busca pelas versoes e anos para modelo: {model}',
