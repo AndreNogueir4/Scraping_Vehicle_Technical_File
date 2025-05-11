@@ -1,0 +1,15 @@
+argparse
+motor
+unicodedata
+datetime
+requests
+lxml
+logging
+colorlog
+asyncio
+aiohttp
+dotenv
+os
+playwright
+typing
+sys
