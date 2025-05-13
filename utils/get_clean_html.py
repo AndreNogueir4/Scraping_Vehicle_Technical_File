@@ -1,4 +1,5 @@
 import aiohttp
+from utils.url_validator import sanitize_url, is_valid_url
 from logger.logger import get_logger, save_log
 from utils.request_with_retry import request_with_proxy
 from utils.fetch_with_playwright import fetch_with_playwright
@@ -6,6 +7,14 @@ from utils.fetch_with_playwright import fetch_with_playwright
 
 async def get_clean_html(url, headers, reference):
     logger = get_logger('get_clean_html', reference=reference)
+
+    url = sanitize_url(url)
+
+    logger.debug(f'🔍 Acessando URL sanitizada: {url!r}')
+
+    if not is_valid_url(url):
+        logger.error(f'❌ URL inválida: {url!r}')
+        return None
 
     async with aiohttp.ClientSession(headers=headers) as session:
         try:
@@ -28,10 +37,11 @@ async def get_clean_html(url, headers, reference):
         return html_content
 
     logger.info('Tentando buscar com Playwright')
-    html_content = await fetch_with_playwright(url, headers=headers, reference=reference)
+    html_content = await fetch_with_playwright(url, reference=reference)
     if html_content and 'Digite o código:' not in html_content:
         return html_content
 
-    logger.error('❌ Falha mesmo usando proxy e Playwright.')
-    await save_log('ERROR', '❌ Falha mesmo usando proxy e Playwright.', reference=reference)
+    logger.error(f'❌ Falha mesmo usando proxy e Playwright para URL: {url!r}')
+    await save_log('ERROR', f'❌ Falha mesmo usando proxy e Playwright para URL: {url!r}',
+                   reference=reference)
     return None

@@ -29,9 +29,10 @@ headers = {
 
 async def fetch_models(automaker):
     automaker = automaker.replace(' ', '-')
-    url = f'https://www.fichacompleta.com.br/carros/{automaker}/'
+    url = f'https://www.fichacompleta.com.br/carros/{automaker}/'.strip()
+
     logger.info(f'Iniciando busca por modelos da montadora {automaker}')
-    await save_log('INFO', 'Iniciando busca por modelos da montadora {automaker}', reference=REFERENCE)
+    await save_log('INFO', f'Iniciando busca por modelos da montadora {automaker}', reference=REFERENCE)
 
     html_content = await get_clean_html(url, headers=headers, reference=REFERENCE)
     if not html_content:

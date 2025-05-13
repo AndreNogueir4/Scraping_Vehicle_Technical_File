@@ -11,7 +11,7 @@ async def fetch_technical_sheet(automaker, model, year, link_query):
     await save_log('INFO', f'Iniciando busca pela ficha tecnica do modelo: {model} para o ano {year}',
                    reference=REFERENCE)
 
-    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'.strip()
 
     headers = {
         'Host': 'www.fichacompleta.com.br',

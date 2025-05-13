@@ -17,12 +17,12 @@ async def fetch_version_and_years(automaker, model):
     automaker = automaker.replace(' ', '-')
     model = remove_accents(model)
 
-    url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+    url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'.strip()
     logger.info(f'Iniciando busca pelas versoes e anos para modelo: {model}')
     await save_log('INFO', f'Iniciando busca pelas versoes e anos para modelo: {model}',
                    reference=REFERENCE)
 
-    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/'
+    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/'.strip()
 
     headers = {
         'Host': 'www.fichacompleta.com.br',
@@ -51,23 +51,32 @@ async def fetch_version_and_years(automaker, model):
     try:
         tree = html.fromstring(html_content)
 
+        error_message = tree.xpath('//text()')
+
+        if 'Digite o código:' in error_message:
+            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
+            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
+            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+
         versions = {}
-        for element in tree.xpath('//div/a'):
+        years = []
+
+        for element in tree.xpath('//div/a[normalize-space(text())]'):
             text = element.text.strip()
-            href = element.get('href')
-            if text and not any(word in text for word in words_to_remove):
+            href = element.get('href', '').strip()
+            if href and not any(word in text for word in words_to_remove):
                 versions[text] = href
 
-        years = []
-        for version in versions:
-            parts = version.split(' · ')
-            year = parts[0]
-            years.append(year)
+                year = text.split('.')[0].strip() if '.' in text else text.strip()
+                years.append(year)
 
         logger.info(f"✅ {len(versions)} versoes e anos encontrados para {model}.")
         await save_log('INFO', f"✅ {len(versions)} versoes e anos encontrados para {model}.",
                        reference=REFERENCE)
         return versions, years
+
+    except SystemExit:
+        raise
 
     except Exception as e:
         logger.exception(f'❌ Erro ao buscar anos e versoes: {e}')

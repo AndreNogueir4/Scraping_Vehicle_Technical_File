@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from playwright.async_api import async_playwright
 from logger.logger import get_logger, save_log
 from typing import Optional, Dict, Any, Union
+from utils.url_validator import sanitize_url, is_valid_url
 
 load_dotenv()
 PROXY = os.getenv('PROXIES')
@@ -36,6 +37,12 @@ async def fetch_with_playwright(url: str, headers: Optional[Dict[str, str]] = No
                                 timeout: int = 30000) -> Optional[str]:
     """ Busca conteúdo da página usando Playwright, com fallback para proxy """
     logger = get_logger('playwright_fetcher', reference=reference)
+
+    url = sanitize_url(url)
+
+    if not is_valid_url(url):
+        logger.error(f'❌ URL inválida: {url!r}')
+        return None
 
     async def _fetch(proxy_server: Optional[str] = None) -> Optional[str]:
         async with async_playwright() as p:

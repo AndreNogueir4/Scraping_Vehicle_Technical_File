@@ -1,6 +1,7 @@
 import aiohttp
 import os
 from dotenv import load_dotenv
+from utils.url_validator import sanitize_url, is_valid_url
 from logger.logger import get_logger
 
 load_dotenv()
@@ -10,6 +11,12 @@ PROXIES = os.getenv('PROXIES', '').split(',')
 
 async def request_with_proxy(url, params=None, headers=None):
     """ Faz uma request usando proxies """
+    url = sanitize_url(url)
+
+    if not is_valid_url(url):
+        logger.error(f'❌ URL inválida: {url!r}')
+        return None
+
     for proxy in PROXIES:
         try:
             connector = aiohttp.TCPConnector(ssl=False)
