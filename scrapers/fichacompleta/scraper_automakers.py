@@ -36,12 +36,22 @@ async def fetch_automakers():
     try:
         tree = html.fromstring(html_content)
 
+        error_message = tree.xpath('//text()')
+
+        if 'Digite o código:' in error_message:
+            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
+            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
+            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+
         automakers = tree.xpath('//div/a/text()')
         automakers = [unidecode(maker.lower().strip()) for maker in automakers if maker.strip() and maker.strip()
                       not in words_to_remove]
         logger.info(f"✅ {len(automakers)} montadoras encontradas.")
         await save_log('INFO', f"✅ {len(automakers)} montadoras encontradas.", reference=REFERENCE)
         return automakers
+
+    except SystemExit:
+        raise
 
     except Exception as e:
         logger.exception(f'❌ Erro ao processar HTML: {e}')

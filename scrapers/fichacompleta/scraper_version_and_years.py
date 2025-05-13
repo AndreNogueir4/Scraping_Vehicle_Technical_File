@@ -1,4 +1,5 @@
 import unicodedata
+import re
 from lxml import html
 from logger.logger import get_logger, save_log
 from utils.get_clean_html import get_clean_html
@@ -67,8 +68,11 @@ async def fetch_version_and_years(automaker, model):
             if href and not any(word in text for word in words_to_remove):
                 versions[text] = href
 
-                year = text.split('.')[0].strip() if '.' in text else text.strip()
-                years.append(year)
+                year_math = re.match(r'^\d{4}', text.strip())
+                if year_math:
+                    year = year_math.group(0)
+                    if year not in ['Carregando', 'Carregando...']:
+                        years.append(year)
 
         logger.info(f"✅ {len(versions)} versoes e anos encontrados para {model}.")
         await save_log('INFO', f"✅ {len(versions)} versoes e anos encontrados para {model}.",

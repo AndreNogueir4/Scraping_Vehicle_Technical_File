@@ -41,12 +41,22 @@ async def fetch_models(automaker):
     try:
         tree = html.fromstring(html_content)
 
+        error_message = tree.xpath('//text()')
+
+        if 'Digite o código:' in error_message:
+            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
+            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
+            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+
         models = tree.xpath('//div/a/text()')
         models = [unidecode(model.lower().strip()) for model in models if model.strip() and model.strip()
                   not in words_to_remove]
         logger.info(f"✅ {len(models)} modelos encontradas.")
         await save_log('INFO', f"✅ {len(models)} modelos encontradas.", reference=REFERENCE)
         return models
+
+    except SystemExit:
+        raise
 
     except Exception as e:
         logger.exception(f'❌ Erro ao buscar modelos: {e}')

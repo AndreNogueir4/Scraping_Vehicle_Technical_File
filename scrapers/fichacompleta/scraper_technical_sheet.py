@@ -40,6 +40,13 @@ async def fetch_technical_sheet(automaker, model, year, link_query):
     try:
         tree = html.fromstring(html_content)
 
+        error_message = tree.xpath('//text()')
+
+        if 'Digite o código:' in error_message:
+            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
+            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
+            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+
         keys_dict = tree.xpath('//div[1]/b/text()')
         value_dict = tree.xpath('//div[2]/text()')
         value_dict = [value.strip() for value in value_dict if value.strip() and value.strip()]
@@ -52,6 +59,9 @@ async def fetch_technical_sheet(automaker, model, year, link_query):
         logger.info(f'✅ Informações da ficha tecnica encontradas')
         await save_log('INFO', f'✅ Informações da ficha tecnica encontradas', reference=REFERENCE)
         return result, equipments
+
+    except SystemExit:
+        raise
 
     except Exception as e:
         logger.exception(f'❌ Erro ao buscar ficha tecnica: {e}')
