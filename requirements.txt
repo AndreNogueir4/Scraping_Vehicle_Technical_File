@@ -13,3 +13,4 @@ os
 playwright
 typing
 sys
+unidecode
