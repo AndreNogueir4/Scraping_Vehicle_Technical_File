@@ -1,45 +1,110 @@
-import requests
+import asyncio
+import unicodedata
+import re
+from playwright.async_api import async_playwright
 from lxml import html
 from unidecode import unidecode
+from fake_useragent import UserAgent
 
 words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
-cookies = {
-    'referer': 'https%3A%2F%2Fwww.fichacompleta.com.br%2Fcarros%2Falfa-romeo%2F145%2F',
-    '_ga': 'GA1.3.1677207861.1746798296',
-    '_gid': 'GA1.3.1112609045.1747143175',
-    'FCNEC': '%5B%5B%22AKsRol-20HEqAhnA1AxzLof8pAtZNY_Z1MYqYXejVFZqWLibmhVNIqtPDHfSRMmTgWPwmp_PfRpeU-wXA3hVkXw92dbAqsetIQn4oPjx1V6M8wm-mfrTUJrr4m7ipWy3AjpOPG-onqEqJd4u3d5DpPOa4Rhqm474xw%3D%3D%22%5D%5D',
-    '__gads': 'ID=16132cbea7a4df19:T=1746798296:RT=1747143174:S=ALNI_MZhffAl5kYFejsbAwRxs3lh5EqeHA',
-    '__gpi': 'UID=00000f17d21c7b8a:T=1746798296:RT=1747143174:S=ALNI_MaOVcur5hhMtKtsIV3qbgkWpN1kxQ',
-    '__eoi': 'ID=ec6ae2c8defd6818:T=1746798296:RT=1747143174:S=AA-AfjYfKxtLxqPHzhEOuRwVGUXC',
-    '_ga_YY4ZL6TY02': 'GS2.1.s1747143174$o2$g0$t1747143178$j0$l0$h0',
-}
+def remove_accent(text):
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', text)
+        if unicodedata.category(c) != 'Mn'
+    )
 
-headers = {
-    'Host': 'www.fichacompleta.com.br',
-    'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Accept-Language': 'pt-BR',
-    'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.100 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-User': '?1',
-    'Sec-Fetch-Dest': 'document',
-    'Priority': 'u=0, i',
-    'Connection': 'keep-alive',
-}
 
-response = requests.get('https://www.fichacompleta.com.br/carros/marcas/', headers=headers)
+async def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
-html_content = response.text
-tree = html.fromstring(html_content)
 
-automakers = tree.xpath('//div/a/text()')
-automakers = [unidecode(maker.lower().strip()) for maker in automakers if maker.strip() and maker.strip()
-              not in words_to_remove]
+async def fetch_and_parse(url, wait_time):
+    async with async_playwright() as p:
+        user_agent = await generate_user_agent()
+        browser = await p.chromium.launch(headless=False)
+        context = await browser.new_context(user_agent=user_agent)
+        page = await context.new_page()
 
-print(response.status_code)
-print(automakers)
+        print(f'Acessando {url} com user-agent: {user_agent}')
+        await page.goto(url)
+
+        content = await page.content()
+        tree = html.fromstring(content)
+
+        all_text = ' '.join(tree.xpath('//text()'))
+
+        if 'Digite o código:' in all_text:
+            print(f'Aguardando {wait_time} segundos para carregar a página')
+            await asyncio.sleep(wait_time)
+            content = await page.content()
+            tree = html.fromstring(content)
+
+        await browser.close()
+        return tree
+
+
+if __name__ == '__main__':
+    url = 'https://www.fichacompleta.com.br/carros/marcas/'
+    wait = 15.0
+
+    tree = asyncio.run(fetch_and_parse(url, wait))
+
+    automakers = tree.xpath('//div/a/text()')
+    automakers = [unidecode(maker.lower().strip()) for maker in automakers if maker.strip() and maker.strip()
+                  not in words_to_remove]
+    print(automakers)
+
+    for automaker in automakers:
+        url = f'https://www.fichacompleta.com.br/carros/{automaker}/'
+        tree = asyncio.run(fetch_and_parse(url, wait))
+
+        models = tree.xpath('//div/a/text()')
+        models = [unidecode(model.lower().strip()) for model in models if model.strip() and model.strip()
+                  not in words_to_remove]
+        print(f'Modelos para a {automaker}: {models}')
+
+        for model in models:
+            model = remove_accent(model).lower()
+            url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+            tree = asyncio.run(fetch_and_parse(url, wait))
+
+            versions = {}
+            years = []
+
+            for element in tree.xpath('//div/a[normalize-space(text())]'):
+                text = element.text.strip()
+                href = element.get('href', '').strip()
+                if href and not any(word in text for word in words_to_remove):
+                    versions[text] = href
+                    year_math = re.match(r'^\d{4}', text.strip())
+                    if year_math:
+                        year = year_math.group(0)
+                        if year not in ['Carregando', 'Carregando...']:
+                            years.append(year)
+
+            for version, year in zip(versions, years):
+                print(f'Montadora: {automaker} | Modelo: {model} | Versao: {version} | Ano: {year}')
+
+                version_key = version
+                link_query = versions.get(version_key)
+
+                url = f'https://www.fichacompleta.com.br{link_query}'
+                print(f'Fazendo a requisição com essa URL: {url}')
+                tree = asyncio.run(fetch_and_parse(url, wait))
+
+                keys_dict = tree.xpath('//div[1]/b/text()')
+                value_dict = tree.xpath('//div[2]/text()')
+                value_dict = [value.strip() for value in value_dict if value.strip() and value.strip()]
+
+                result = {title: value.strip() for title, value in zip(keys_dict, value_dict)}
+
+                equipments = tree.xpath('//li/span/text()')
+                equipments = [equip.strip() for equip in equipments if equip.strip() and equip.strip()]
+
+                if not equipments:
+                    equipments = ['Não contem lista de equipamentos para esse modelo']
+
+                print(result)
+                print(equipments)
