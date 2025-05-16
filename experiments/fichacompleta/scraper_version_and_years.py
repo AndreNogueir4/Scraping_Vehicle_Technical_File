@@ -5,8 +5,13 @@ import asyncio
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
 from lxml import html
+from fake_useragent import UserAgent
 
 load_dotenv()
+
+async def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
 words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
@@ -50,6 +55,8 @@ async def get_version_and_years(automaker, model):
     url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
     reference = f'https://www.fichacompleta.com.br/carros/{automaker}/'
 
+    user_agent = await generate_user_agent()
+
     headers = {
         'Host': 'www.fichacompleta.com.br',
         'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
@@ -57,7 +64,7 @@ async def get_version_and_years(automaker, model):
         'Sec-Ch-Ua-Platform': '"Windows"',
         'Accept-Language': 'pt-BR',
         'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.100 Safari/537.36',
+        'User-Agent': user_agent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Sec-Fetch-Site': 'same-origin',
         'Sec-Fetch-Mode': 'navigate',
@@ -108,6 +115,8 @@ async def get_version_and_years_proxy(automaker, model):
     url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
     reference = f'https://www.fichacompleta.com.br/carros/{automaker}/'
 
+    user_agent = await generate_user_agent()
+
     headers = {
         'Host': 'www.fichacompleta.com.br',
         'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
@@ -115,7 +124,7 @@ async def get_version_and_years_proxy(automaker, model):
         'Sec-Ch-Ua-Platform': '"Windows"',
         'Accept-Language': 'pt-BR',
         'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.100 Safari/537.36',
+        'User-Agent': user_agent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Sec-Fetch-Site': 'same-origin',
         'Sec-Fetch-Mode': 'navigate',

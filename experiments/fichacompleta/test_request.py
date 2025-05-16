@@ -5,6 +5,7 @@ from playwright.async_api import async_playwright
 from lxml import html
 from unidecode import unidecode
 from fake_useragent import UserAgent
+from db.mongo import insert_vehicle_specs
 
 words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
@@ -14,11 +15,9 @@ def remove_accent(text):
         if unicodedata.category(c) != 'Mn'
     )
 
-
 async def generate_user_agent():
     ua = UserAgent()
     return ua.random
-
 
 async def fetch_and_parse(url, wait_time):
     async with async_playwright() as p:
@@ -44,12 +43,11 @@ async def fetch_and_parse(url, wait_time):
         await browser.close()
         return tree
 
-
-if __name__ == '__main__':
+async def main():
     url = 'https://www.fichacompleta.com.br/carros/marcas/'
     wait = 15.0
 
-    tree = asyncio.run(fetch_and_parse(url, wait))
+    tree = await fetch_and_parse(url, wait)
 
     automakers = tree.xpath('//div/a/text()')
     automakers = [unidecode(maker.lower().strip()) for maker in automakers if maker.strip() and maker.strip()
@@ -58,7 +56,7 @@ if __name__ == '__main__':
 
     for automaker in automakers:
         url = f'https://www.fichacompleta.com.br/carros/{automaker}/'
-        tree = asyncio.run(fetch_and_parse(url, wait))
+        tree = await fetch_and_parse(url, wait)
 
         models = tree.xpath('//div/a/text()')
         models = [unidecode(model.lower().strip()) for model in models if model.strip() and model.strip()
@@ -68,7 +66,7 @@ if __name__ == '__main__':
         for model in models:
             model = remove_accent(model).lower()
             url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
-            tree = asyncio.run(fetch_and_parse(url, wait))
+            tree = await fetch_and_parse(url, wait)
 
             versions = {}
             years = []
@@ -92,7 +90,7 @@ if __name__ == '__main__':
 
                 url = f'https://www.fichacompleta.com.br{link_query}'
                 print(f'Fazendo a requisição com essa URL: {url}')
-                tree = asyncio.run(fetch_and_parse(url, wait))
+                tree = await fetch_and_parse(url, wait)
 
                 keys_dict = tree.xpath('//div[1]/b/text()')
                 value_dict = tree.xpath('//div[2]/text()')
@@ -103,8 +101,7 @@ if __name__ == '__main__':
                 equipments = tree.xpath('//li/span/text()')
                 equipments = [equip.strip() for equip in equipments if equip.strip() and equip.strip()]
 
-                if not equipments:
-                    equipments = ['Não contem lista de equipamentos para esse modelo']
+                await insert_vehicle_specs(automaker, model, year, version, result, equipments)
 
-                print(result)
-                print(equipments)
+if __name__ == '__main__':
+    asyncio.run(main())
