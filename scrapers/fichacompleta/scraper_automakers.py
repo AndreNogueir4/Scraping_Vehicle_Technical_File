@@ -1,59 +1,75 @@
+import requests
 from lxml import html
 from unidecode import unidecode
 from logger.logger import get_logger, save_log
-from utils.get_clean_html import get_clean_html
+from utils.request_with_retry_proxy import fichacompleta_proxy
+from fake_useragent import UserAgent
+
 
 REFERENCE = 'fichacompleta'
 logger = get_logger('scraper_automakers', reference=REFERENCE)
 
-words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
+def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
-headers = {
-     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
-    'Referer': 'https://www.fichacompleta.com.br/carros/',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-User': '?1',
-    'DNT': '1',
-    'Sec-GPC': '1',
-    'Priority': 'u=0, i',
-}
+def get_automakers():
+    words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
-async def fetch_automakers():
     url = 'https://www.fichacompleta.com.br/carros/marcas/'
-    logger.info('Iniciando busca por montadoras')
-    await save_log('INFO', 'Iniciando busca por montadoras', reference=REFERENCE)
+    user_agent = generate_user_agent()
 
-    html_content = await get_clean_html(url, headers=headers, reference=REFERENCE)
-    if not html_content:
-        return []
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Referer': 'https://www.fichacompleta.com.br/carros/',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Sec-GPC': '1',
+        'Priority': 'u=0, i',
+    }
 
     try:
-        tree = html.fromstring(html_content)
+        response = requests.get(url, headers=headers)
 
-        error_message = tree.xpath('//text()')
+        if response.status_code == 200:
+            tree = html.fromstring(response.text)
 
-        if 'Digite o código:' in error_message:
-            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
-            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
-            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+            error_message = tree.xpath('//text')
+            if 'Digite o código:' in error_message:
+                logger.warning('Captcha encontrado no scraper_automakers (fichacompleta)')
+                return []
 
-        automakers = tree.xpath('//div/a/text()')
-        automakers = [unidecode(maker.lower().strip()) for maker in automakers if maker.strip() and maker.strip()
-                      not in words_to_remove]
-        logger.info(f"✅ {len(automakers)} montadoras encontradas.")
-        await save_log('INFO', f"✅ {len(automakers)} montadoras encontradas.", reference=REFERENCE)
-        return automakers
+            automakers = tree.xpath('//div/a/text()')
+            automakers = [
+                unidecode(maker.lower().strip().replace(' ', '-'))
+                for maker in automakers
+                if maker.strip() and maker.strip() not in words_to_remove
+            ]
+            return automakers
 
-    except SystemExit:
-        raise
+        elif response.status_code == 403:
+            logger.warning('Status_code: 403 usando proxy (scraper_automakers/fichacompleta)')
+            content_proxy = fichacompleta_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
+            automakers = tree.xpath('//div/a/text()')
+            automakers = [
+                unidecode(maker.lower().strip().replace(' ', '-'))
+                for maker in automakers
+                if maker.strip() and maker.strip() not in words_to_remove
+            ]
+            return automakers
 
-    except Exception as e:
-        logger.exception(f'❌ Erro ao processar HTML: {e}')
-        await save_log('ERROR', f'❌ Erro ao processar HTML: {e}', reference=REFERENCE)
+        else:
+            print(f'Erro ao acessar {url} - Status: {response.status_code}')
+            return []
+
+    except requests.RequestException as e:
+        print(f"Erro ao fazer requisição: {e}")
         return []
