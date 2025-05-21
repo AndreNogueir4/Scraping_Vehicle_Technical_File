@@ -1,72 +1,81 @@
-import unicodedata
-import re
+import requests
 from lxml import html
-from logger.logger import get_logger, save_log
-from utils.get_clean_html import get_clean_html
+import re
+from logger.logger import get_logger
+from utils.request_with_retry_proxy import fichacompleta_proxy
+from fake_useragent import UserAgent
 
 REFERENCE = 'fichacompleta'
 logger = get_logger('scraper_version_and_years', reference=REFERENCE)
 
-words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
+def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
-def remove_accents(text):
-    normalized_text = unicodedata.normalize('NFKD', text)
-    text_without_accents = ''.join(c for c in normalized_text if not unicodedata.combining(c))
-    return text_without_accents
+def get_version_years(automaker, model):
+    words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
-async def fetch_version_and_years(automaker, model):
-    automaker = automaker.replace(' ', '-')
-    model = remove_accents(model)
-
-    url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'.strip()
-    logger.info(f'Iniciando busca pelas versoes e anos para modelo: {model}')
-    await save_log('INFO', f'Iniciando busca pelas versoes e anos para modelo: {model}',
-                   reference=REFERENCE)
-
-    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/'.strip()
+    url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/'
+    user_agent = generate_user_agent()
 
     headers = {
-        'Host': 'www.fichacompleta.com.br',
-        'Cache-Control': 'max-age=0',
-        'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
-        'Sec-Ch-Ua-Mobile': '?0',
-        'Sec-Ch-Ua-Platform': '"Windows"',
-        'Accept-Language': 'pt-BR',
-        'Upgrade-Insecure-Requests': '1',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
-                      'Chrome/127.0.6533.100 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
-                  'q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Sec-Fetch-Site': 'cross-site',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-User': '?1',
-        'Sec-Fetch-Dest': 'document',
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Connection': 'keep-alive',
         'Referer': referer,
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Sec-GPC': '1',
         'Priority': 'u=0, i',
     }
 
-    html_content = await get_clean_html(url, headers=headers, reference=REFERENCE)
-    if not html_content:
-        return []
-
     try:
-        tree = html.fromstring(html_content)
+        response = requests.get(url, headers=headers)
 
-        error_message = tree.xpath('//text()')
+        if response.status_code == 200:
+            tree = html.fromstring(response.text)
 
-        if 'Digite o código:' in error_message:
-            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
-            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
-            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+            error_message = tree.xpath('//text')
+            if 'Digite o código:' in error_message:
+                logger.warning('Captcha encontrado no scraper_version_and_years (fichacompleta)')
+                return []
 
-        versions = {}
-        years = []
+            versions = {}
+            years = []
 
-        for element in tree.xpath('//div/a[normalize-space(text())]'):
-            text = element.text.strip()
-            href = element.get('href', '').strip()
-            if href and not any(word in text for word in words_to_remove):
-                versions[text] = href
+            for element in tree.xpath('//div/a[normalize-space(text())]'):
+                text = element.text.strip()
+                href = element.get('href', '').strip()
+                if href and not any(word in text for word in words_to_remove):
+                    versions[text] = href
+
+                    year_math = re.match(r'^\d{4}', text.strip())
+                    if year_math:
+                        year = year_math.group(0)
+                        if year not in ['Carregando', 'Carregando...']:
+                            years.append(year)
+
+            logger.info(f"✅ {len(versions)} versoes e anos encontrados para {model}.")
+            return versions, years
+        elif response.status_code == 403:
+            logger.warning('Status_code: 403 usando proxy (scraper_version_and_years/fichacompleta)')
+            content_proxy = fichacompleta_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
+
+            versions = {}
+            years = []
+
+            for element in tree.xpath('//div/a[normalize-space(text())]'):
+                text = element.text.strip()
+                href = element.get('href', '').strip()
+                if href and not any(word in text for word in words_to_remove):
+                    versions[text] = href
 
                 year_math = re.match(r'^\d{4}', text.strip())
                 if year_math:
@@ -74,15 +83,12 @@ async def fetch_version_and_years(automaker, model):
                     if year not in ['Carregando', 'Carregando...']:
                         years.append(year)
 
-        logger.info(f"✅ {len(versions)} versoes e anos encontrados para {model}.")
-        await save_log('INFO', f"✅ {len(versions)} versoes e anos encontrados para {model}.",
-                       reference=REFERENCE)
-        return versions, years
+            logger.info(f"✅ {len(versions)} versoes e anos encontrados para {model}.")
+            return versions, years
+        else:
+            logger.warning(f'Erro ao acessar {url} - Status: {response.status_code}')
+            return []
 
-    except SystemExit:
-        raise
-
-    except Exception as e:
-        logger.exception(f'❌ Erro ao buscar anos e versoes: {e}')
-        await save_log('ERROR', f'❌ Erro ao buscar anos e versoes: {e}', reference=REFERENCE)
+    except requests.RequestException as e:
+        logger.warning(f'Erro ao fazer requisicao: {e}')
         return []

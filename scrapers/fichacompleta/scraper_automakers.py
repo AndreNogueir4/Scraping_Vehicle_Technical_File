@@ -1,7 +1,7 @@
 import requests
 from lxml import html
 from unidecode import unidecode
-from logger.logger import get_logger, save_log
+from logger.logger import get_logger
 from utils.request_with_retry_proxy import fichacompleta_proxy
 from fake_useragent import UserAgent
 

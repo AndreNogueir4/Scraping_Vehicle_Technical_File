@@ -1,64 +1,74 @@
+import requests
 from lxml import html
 from unidecode import unidecode
-from logger.logger import get_logger, save_log
-from utils.get_clean_html import get_clean_html
+from logger.logger import get_logger
+from utils.request_with_retry_proxy import fichacompleta_proxy
+from fake_useragent import UserAgent
 
 REFERENCE = 'fichacompleta'
 logger = get_logger('scraper_models', reference=REFERENCE)
 
-words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
+def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
-headers = {
-    'Host': 'www.fichacompleta.com.br',
-    'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Accept-Language': 'pt-BR',
-    'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
-                  'Chrome/127.0.6533.100 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
-              'q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-User': '?1',
-    'Sec-Fetch-Dest': 'document',
-    'Referer': 'https://www.fichacompleta.com.br/carros/marcas/',
-    'Priority': 'u=0, i',
-}
+def get_models(automaker):
+    words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
 
-async def fetch_models(automaker):
-    automaker = automaker.replace(' ', '-')
-    url = f'https://www.fichacompleta.com.br/carros/{automaker}/'.strip()
+    url = f'https://www.fichacompleta.com.br/carros/{automaker}/'
+    user_agent = generate_user_agent()
 
-    logger.info(f'Iniciando busca por modelos da montadora {automaker}')
-    await save_log('INFO', f'Iniciando busca por modelos da montadora {automaker}', reference=REFERENCE)
-
-    html_content = await get_clean_html(url, headers=headers, reference=REFERENCE)
-    if not html_content:
-        return []
+    headers = {
+        'Host': 'www.fichacompleta.com.br',
+        'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Accept-Language': 'pt-BR',
+        'Upgrade-Insecure-Requests': '1',
+        'User-Agent': user_agent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
+                    'q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Purpose': 'prefetch',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Dest': 'document',
+        'Referer': 'https://www.fichacompleta.com.br/carros/marcas/',
+        'Priority': 'u=4, i',
+    }
 
     try:
-        tree = html.fromstring(html_content)
+        response = requests.get(url, headers=headers)
 
-        error_message = tree.xpath('//text()')
+        if response.status_code == 200:
+            tree = html.fromstring(response.text)
 
-        if 'Digite o código:' in error_message:
-            logger.error(f'⛔ CAPTCHA DETECTADO - Interrompendo execução')
-            await save_log('CRITICAL', 'CAPTCHA detectado no fichacompleta', reference=REFERENCE)
-            raise SystemExit("CAPTCHA Bloqueou o Acesso")
+            error_message = tree.xpath('//text')
+            if 'Digite o código:' in error_message:
+                logger.warning('Captcha encontrado no scraper_models (fichacompleta)')
+                return []
 
-        models = tree.xpath('//div/a/text()')
-        models = [unidecode(model.lower().strip()) for model in models if model.strip() and model.strip()
-                  not in words_to_remove]
-        logger.info(f"✅ {len(models)} modelos encontradas.")
-        await save_log('INFO', f"✅ {len(models)} modelos encontradas.", reference=REFERENCE)
-        return models
+            models = tree.xpath('//div/a/text()')
+            models = [
+                unidecode(model.lower().strip().replace(' ', '-'))
+                for model in models if model.strip() not in words_to_remove
+            ]
+            logger.info(f"✅ {len(models)} modelos encontradas.")
+            return models
+        elif response.status_code == 403:
+            logger.warning('Status_code: 403 usando proxy (scraper_models/fichacompleta)')
+            content_proxy = fichacompleta_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
+            models = tree.xpath('//div/a/text()')
+            models = [
+                unidecode(model.lower().strip().replace(' ', '-'))
+                for model in models if model.strip() not in words_to_remove
+            ]
+            logger.info(f"✅ {len(models)} modelos encontradas, usando proxy")
+            return models
+        else:
+            logger.warning(f'Erro ao acessar {url} - Status: {response.status_code}')
+            return []
 
-    except SystemExit:
-        raise
-
-    except Exception as e:
-        logger.exception(f'❌ Erro ao buscar modelos: {e}')
-        await save_log('ERROR', f'❌ Erro ao buscar modelos: {e}', reference=REFERENCE)
+    except requests.RequestException as e:
+        logger.warning(f'Erro ao fazer requisicao: {e}')
         return []

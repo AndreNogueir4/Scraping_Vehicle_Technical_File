@@ -1,48 +1,108 @@
-import aiohttp
-import asyncio
+import requests
+import os
+import time
 from lxml import html
-from db.mongo import insert_vehicle_specs
+from dotenv import load_dotenv
+from fake_useragent import UserAgent
 
-automaker = 'chevrolet'
-model = 'onix'
-year = '2025'
-version = 'ltz · 1.0 · turbo · at · flex'
+load_dotenv()
+PROXIES = os.getenv('PROXIES', '').split(',')
 
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
-    'Referer': 'https://www.fichacompleta.com.br/carros/chevrolet/onix/',
-    'Connection': 'keep-alive',
-    'Upgrade-Insecure-Requests': '1',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'same-origin',
-    'Sec-Fetch-User': '?1',
-    'DNT': '1',
-    'Sec-GPC': '1',
-    'Priority': 'u=0, i',
-}
+def generate_user_agent():
+    ua = UserAgent()
+    return ua.random
 
-async def fetch_and_store():
-    url = 'https://www.fichacompleta.com.br/carros/chevrolet/onix-ltz-1-0-turbo-at-2025-flex'
+def get_technical_sheet_proxy(url, headers, max_retries=10):
+    for proxy in PROXIES:
+        proxy_dict = {
+            'http': proxy,
+            'https': proxy
+        }
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f'Tentando proxy: {proxy}')
+                response = requests.get(url, headers=headers, proxies=proxy_dict)
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            html_content = await response.text()
+                if response.status_code == 200:
+                    tree = html.fromstring(response.text)
+                    all_text = tree.xpath('//text')
+                    if any('Digite o código:' in text for text in all_text):
+                        print('CAPTCHA ainda presente com este proxy')
+                        continue
+                    return response.text
+                else:
+                    print(f'Proxy {proxy} falhou com status {response.status_code} e URL: {url}')
+            except requests.RequestException as e:
+                print(f'Erro com proxy {proxy}: {e}')
+            time.sleep(10)
+    raise Exception('Todos os proxies falharam ou CAPTCHA persistiu')
 
-    tree = html.fromstring(html_content)
+def get_technical_sheet(automaker, model, href):
+    url = f'https://www.fichacompleta.com.br{href}'
+    referer = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+    user_agente = generate_user_agent()
 
-    keys_dict = tree.xpath('//div[1]/b/text()')
-    value_dict = tree.xpath('//div[2]/text()')
-    value_dict = [value.strip() for value in value_dict if value.strip() and value.strip()]
+    headers = {
+        'User-Agent': user_agente,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Referer': referer,
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Sec-GPC': '1',
+        'Priority': 'u=0, i',
+    }
 
-    result = {title: value.strip() for title, value in zip(keys_dict, value_dict)}
+    response = requests.get(url, headers=headers)
 
-    equipments = tree.xpath('//li/span/text()')
-    equipments = [equip.strip() for equip in equipments if equip.strip() and equip.strip()]
+    if response.status_code == 200:
+        content = response.text
+        tree = html.fromstring(content)
 
-    await insert_vehicle_specs(automaker, model, year, version, result, equipments)
+        all_text = tree.xpath('//text')
+        if any('Digite o código:' in text for text in all_text):
+            print('CAPTCHA encontrado usando o proxy')
+            content_proxy = get_technical_sheet_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
 
-if __name__ == '__main__':
-    asyncio.run(fetch_and_store())
+        keys_dict = tree.xpath('//div[1]/b/text()')
+        value_dict = tree.xpath('//div[2]/text()')
+        value_dict = [value.strip() for value in value_dict if value.strip() and value.strip()]
+
+        result = {title: value.strip() for title, value in zip(keys_dict, value_dict)}
+
+        equipments = tree.xpath('//li/span/text()')
+        equipments = [equip.strip() for equip in equipments if equip.strip() and equip.strip()]
+
+        if not equipments:
+            equipments = ['Equipamentos nao listados para esse modelo']
+
+        return result, equipments
+
+    elif response.status_code == 403:
+        print('Status_code: 403 usando proxy')
+        content_proxy = get_technical_sheet_proxy(url, headers)
+        tree = html.fromstring(content_proxy)
+
+        keys_dict = tree.xpath('//div[1]/b/text()')
+        value_dict = tree.xpath('//div[2]/text()')
+        value_dict = [value.strip() for value in value_dict if value.strip() and value.strip()]
+
+        result = {title: value.strip() for title, value in zip(keys_dict, value_dict)}
+
+        equipments = tree.xpath('//li/span/text()')
+        equipments = [equip.strip() for equip in equipments if equip.strip() and equip.strip()]
+
+        if not equipments:
+            equipments = ['Equipamentos nao listados para esse modelo']
+
+        return result, equipments
+
+    else:
+        print(f'Erro ao acessar {url} - Status: {response.status_code}')
+        return [], []

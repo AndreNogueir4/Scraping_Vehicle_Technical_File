@@ -14,17 +14,17 @@ async def run_fichacompleta():
     logger.info('🚗 Iniciando scrapers do Ficha Completa')
     reference = 'fichacompleta'
 
-    automakers = await fc_automakers.fetch_automakers()
+    automakers = await fc_automakers.get_automakers()
     if not await validate_scraper_data(automakers, "automakers", "fichacompleta"):
         return False
 
     for automaker in automakers:
-        models = await fc_models.fetch_models(automaker)
+        models = await fc_models.get_models(automaker)
         if not await validate_scraper_data(models, f"models para {automaker}", "fichacompleta"):
             continue
 
         for model in models:
-            versions, years = await fc_version.fetch_version_and_years(automaker, model)
+            versions, years = await fc_version.get_version_years(automaker, model)
             if not await validate_scraper_data(versions, f"versions para {automaker}/{model}",
                                                "fichacompleta") or \
                not await validate_scraper_data(years, f"years para {automaker}/{model}",
@@ -38,13 +38,12 @@ async def run_fichacompleta():
             for vehicle in vehicles:
                 automaker = vehicle['automaker']
                 model = vehicle['model']
-                year = vehicle['year']
                 version_key = vehicle['version']
 
                 link_query = versions.get(version_key)
 
                 if link_query:
-                    await fc_technical.fetch_technical_sheet(automaker, model, year, link_query)
+                    await fc_technical.get_technical_sheet(automaker, model, link_query)
                 else:
                     logger.warning(f'Version não encontrado em versions: {version_key}')
 
