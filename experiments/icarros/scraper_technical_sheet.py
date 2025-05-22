@@ -10,8 +10,10 @@ headers = {
     'Sec-Ch-Ua-Platform': '"Windows"',
     'Accept-Language': 'pt-BR',
     'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.6533.100 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)'
+                  'Chrome/127.0.6533.100 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
+              'q=0.8,application/signed-exchange;v=b3;q=0.7',
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-User': '?1',
@@ -55,13 +57,106 @@ info_mechanics_dict = {}
 i = 0
 while i < len(filtered_list_mechanics):
     if i+1 < len(filtered_list_mechanics):
-        if not filtered_list_mechanics[i+1] == 'N/D':
-            info_mechanics_dict[filtered_list_mechanics[i]] = filtered_list_mechanics[i+1]
+        if filtered_list_mechanics[i+1] == 'N/D':
+            info_mechanics_dict[filtered_list_mechanics[i]] = 'N/D'
             i += 2
         else:
-            info_mechanics_dict[filtered_list_mechanics[i]] = 'N/D'
-            i += 1
+            info_mechanics_dict[filtered_list_mechanics[i]] = filtered_list_mechanics[i+1]
+            i += 2
+    else:
+        info_mechanics_dict[filtered_list_mechanics[i]] = 'N/D'
+        i += 1
+
+info_dimensions = tree.xpath('//div[6]/div/table/tbody/tr/td/text()')
+
+info_dimensions_dict = {}
+i = 0
+while i < len(info_dimensions):
+    if i+1 < len(info_dimensions):
+        if info_dimensions[i+1] == 'N/D':
+            info_dimensions_dict[info_dimensions[i]] = 'N/D'
+            i += 2
+        else:
+            info_dimensions_dict[info_dimensions[i]] = info_dimensions[i+1]
+            i += 2
+    else:
+        info_dimensions_dict[info_dimensions[i]] = 'N/D'
+        i += 1
+
+info_security_items = tree.xpath('//div[8]/div/table/tbody/tr')
+
+features_security = {}
+for item in info_security_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_security[name] = '✅'
+    elif 'times-circle' in icon:
+        features_security[name] = '⛔'
+
+info_confort_items = tree.xpath('//div[10]/div/table/tbody/tr')
+features_confort = {}
+for item in info_confort_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_confort[name] = '✅'
+    elif 'times-circle' in icon:
+        features_confort[name] = '⛔'
+
+
+info_sound_items = tree.xpath('//div[12]/div/table/tbody/tr')
+features_sound = {}
+for item in info_sound_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_sound[name] = '✅'
+    elif 'times-circle' in icon:
+        features_sound[name] = '⛔'
+
+
+info_bench_items = tree.xpath('//div[14]/div/table/tbody/tr')
+features_bench = {}
+for item in info_bench_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_bench[name] = '✅'
+    elif 'times-circle' in icon:
+        features_bench[name] = '⛔'
+
+
+info_window_items = tree.xpath('//div[16]/div/table/tbody/tr')
+features_window = {}
+for item in info_window_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_window[name] = '✅'
+    elif 'times-circle' in icon:
+        features_window[name] = '⛔'
+
+
+info_other_items = tree.xpath('//div[18]/div/table/tbody/tr')
+features_other = {}
+for item in info_other_items:
+    name = item.xpath('./td[1]/text()')[0].strip()
+    icon = item.xpath('./td[2]/i/@class')[0]
+
+    if 'check-circle' in icon:
+        features_other[name] = '✅'
+    elif 'times-circle' in icon:
+        features_other[name] = '⛔'
 
 print(title_technical_sheet)
 print(title_vehicle_technical_sheet)
-print(info_mechanics_technical_sheet)
+print(features_sound)
+print(features_bench)
+print(features_window)
+print(features_other)

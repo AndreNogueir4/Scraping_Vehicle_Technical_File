@@ -17,14 +17,16 @@ headers = {
     'Priority': 'u=1, i',
 }
 
-response = requests.get(
-    'https://www.icarros.com.br/rest/select-options/CARRO/marcas',
-    headers=headers,
-)
+def get_automakers():
 
-json_content = response.json()
+    response = requests.get(
+        'https://www.icarros.com.br/rest/select-options/CARRO/marcas',
+        headers=headers,
+    )
 
-automakers = [item['nome'] for item in json_content]
-automakers = [maker.lower().replace(' ', '-').replace('(', '').replace(')', '') for maker in automakers]
+    json_content = response.json()
 
-print(automakers)
+    automakers = [item['nome'] for item in json_content]
+    automakers = [maker.lower().replace(' ', '-').replace('(', '').replace(')', '') for maker in automakers]
+
+    return automakers

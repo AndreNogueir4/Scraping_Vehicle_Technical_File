@@ -1,8 +1,6 @@
 import requests
 from lxml import html
 
-automaker = 'aston-martin'
-
 headers = {
     'Host': 'www.icarros.com.br',
     'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
@@ -22,18 +20,19 @@ headers = {
     'Priority': 'u=0, i',
 }
 
-url = f'https://www.icarros.com.br/{automaker}'
+def get_models(automaker):
+    url = f'https://www.icarros.com.br/{automaker}'
+    response = requests.get(url, headers=headers)
 
-response = requests.get(url, headers=headers)
+    html_content = response.text
+    tree = html.fromstring(html_content)
 
-html_content = response.text
-tree = html.fromstring(html_content)
+    links = tree.xpath('//li/div/a')
+    result = {}
 
-links = tree.xpath('//li/div/a')
+    for link in links:
+        href = link.get('href')
+        title = link.get('title')
+        result[title] = href
 
-for link in links:
-    href = link.get('href')
-    title = link.get('title')
-    print(f'URL: {href}, Titulo: {title}')
-
-print(response.status_code)
+    return result
