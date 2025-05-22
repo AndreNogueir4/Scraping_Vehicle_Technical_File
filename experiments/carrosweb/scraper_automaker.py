@@ -11,8 +11,8 @@ words_to_remove = [
     'Página Principal', 'Comparativo', 'Avaliação', 'Notícias', 'Opinião do Dono', 'Concessionárias',
     'Ranking', 'Carros Mais Vendidos', 'Todos', 'Hatchback', 'Sedã', 'Perua', 'Minivan', 'Cupê',
     'Conversível', 'SUV', 'Picape', 'Van', 'Furgão', 'Jipe', 'Chassi-cabine', 'Mapa do site',
-    'Sobre o site', 'Privacidade', 'Termos de uso', 'Mobile', 'Fale Conosco', 'Comunicar erro',
-    'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos'
+    'Sobre o site', 'Privacidade', 'Termos de uso', 'Mobile', 'Fale Conosco', 'Comunicar erro', 'Versão Clássica',
+    'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos', 'versão clássica', 'Versão clássica'
 ]
 
 def generate_user_agent():
@@ -38,23 +38,28 @@ def get_automakers(max_retries=5):
         'Sec-GPC': '1',
         'Priority': 'u=0, i',
     }
+    for attempt in range(1, max_retries + 1):
+        try:
+            proxies = None
+            if PROXIES:
+                proxy = PROXIES[attempt % len(PROXIES)]
+                proxies = {
+                    'http': proxy,
+                    'https': proxy
+                }
 
-    for proxy in PROXIES:
-        proxy_dict = {
-            'http': proxy,
-            'https': proxy
-        }
-        for attempt in range(1, max_retries + 1):
-            try:
-                response = requests.get(url, headers=headers, proxies=proxy_dict)
+            response = requests.get(url, headers=headers)
 
-                if response.status_code == 200:
-                    html_content = response.text
-                    print(html_content)
-                else:
-                    print(response.status_code)
-            except requests.RequestException as e:
-                print(f'Erro com proxy {proxy}: {e}')
+            if response.status_code == 200:
+                html_content = response.text
+                tree = html.fromstring(html_content)
+                automakers = tree.xpath('//a/font/text()')
+                automakers = [maker.lower() for maker in automakers if maker not in words_to_remove]
+                return automakers
 
+            else:
+                print(f"Attempt {attempt}: Status code {response.status_code}")
+        except requests.RequestException as e:
+            print(f'Attempt {attempt}: Error - {e}')
 
-get_automakers()
+    return []
