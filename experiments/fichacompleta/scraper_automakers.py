@@ -54,16 +54,13 @@ def get_automakers_proxy(url, max_retries=10):
 
 def get_automakers():
     words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
-
     url = 'https://www.fichacompleta.com.br/carros/marcas/'
 
     try:
         response = requests.get(url, headers=headers)
 
         if response.status_code == 200:
-
             tree = html.fromstring(response.text)
-
             error_message = tree.xpath('//text()')
             if 'Digite o código:' in error_message:
                 print('Captcha encontrado')
@@ -75,8 +72,8 @@ def get_automakers():
                 for maker in automakers
                 if maker.strip() and maker.strip() not in words_to_remove
             ]
-
             return automakers
+
         elif response.status_code == 403:
             print('Status_code: 403 usando proxy')
             content_proxy = get_automakers_proxy(url)
@@ -88,9 +85,18 @@ def get_automakers():
                 if maker.strip() and maker.strip() not in words_to_remove
             ]
             return automakers
+
         else:
             print(f'Erro ao acessar {url} - Status: {response.status_code}')
-            return []
+            content_proxy = get_automakers_proxy(url)
+            tree = html.fromstring(content_proxy)
+            automakers = tree.xpath('//div/a/text()')
+            automakers = [
+                unidecode(maker.lower().strip().replace(' ', '-'))
+                for maker in automakers
+                if maker.strip() and maker.strip() not in words_to_remove
+            ]
+            return automakers
 
     except requests.RequestException as e:
         print(f"Erro ao fazer requisição: {e}")

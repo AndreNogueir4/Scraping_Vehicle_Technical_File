@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from lxml import html
 
 headers = {
@@ -20,19 +20,22 @@ headers = {
     'Priority': 'u=0, i',
 }
 
-def get_models(automaker):
+async def get_models(automaker):
     url = f'https://www.icarros.com.br/{automaker}'
-    response = requests.get(url, headers=headers)
 
-    html_content = response.text
-    tree = html.fromstring(html_content)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers) as response:
 
-    links = tree.xpath('//li/div/a')
-    result = {}
+            html_content = await response.text()
+            tree = html.fromstring(html_content)
 
-    for link in links:
-        href = link.get('href')
-        title = link.get('title')
-        result[title] = href
+            links = tree.xpath('//li/div/a')
+            result = {}
 
-    return result
+            for link in links:
+                href = link.get('href')
+                title = link.get('title')
+                if title and href:
+                    result[title] = href
+
+            return result

@@ -1,5 +1,6 @@
-import requests
+import aiohttp
 
+url = 'https://www.icarros.com.br/rest/select-options/CARRO/marcas'
 headers = {
     'Host': 'www.icarros.com.br',
     'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
@@ -17,16 +18,15 @@ headers = {
     'Priority': 'u=1, i',
 }
 
-def get_automakers():
+async def get_automakers():
+    async with aiohttp.ClientSession() as session:
+        async with session.get(
+            url,
+            headers=headers
+        ) as response:
 
-    response = requests.get(
-        'https://www.icarros.com.br/rest/select-options/CARRO/marcas',
-        headers=headers,
-    )
+            json_content = await response.json()
 
-    json_content = response.json()
-
-    automakers = [item['nome'] for item in json_content]
-    automakers = [maker.lower().replace(' ', '-').replace('(', '').replace(')', '') for maker in automakers]
-
-    return automakers
+            automakers = [item['nome'] for item in json_content]
+            automakers = [maker.lower().replace(' ', '-').replace('(', '').replace(')', '') for maker in automakers]
+            return automakers
