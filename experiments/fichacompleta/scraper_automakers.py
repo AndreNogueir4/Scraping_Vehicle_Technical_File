@@ -1,32 +1,36 @@
-import time
 import requests
 import os
+import time
 from dotenv import load_dotenv
 from lxml import html
 from unidecode import unidecode
+from fake_useragent import UserAgent
 
 load_dotenv()
 PROXIES = os.getenv('PROXIES', '').split(',')
 
-headers = {
-    'Host': 'www.fichacompleta.com.br',
-    'Sec-Ch-Ua': '"Chromium";v="127", "Not)A;Brand";v="99"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Accept-Language': 'pt-BR',
-    'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_9_7; en-US) Gecko/20100101 Firefox/53.4',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
-                'q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-User': '?1',
-    'Sec-Fetch-Dest': 'document',
-    'Priority': 'u=0, i',
-    'Connection': 'keep-alive',
-}
+def generate_headers_user_agent():
+    ua = UserAgent()
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;'
+                  'q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+        'cache-control': 'max-age=0',
+        'priority': 'u=0, i',
+        'referer': 'https://www.fichacompleta.com.br/carros/',
+        'sec-ch-ua': '"Chromium";v="136", "Microsoft Edge";v="136", "Not.A/Brand";v="99"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': ua.random,
+    }
+    return headers
 
-def get_automakers_proxy(url, max_retries=10):
+def get_automakers_proxy(url, headers, max_retries=5):
     for proxy in PROXIES:
         proxy_dict = {
             'http': proxy,
@@ -48,13 +52,13 @@ def get_automakers_proxy(url, max_retries=10):
                     print(f'Proxy {proxy} falhou com status {response.status_code}')
             except requests.RequestException as e:
                 print(f'Erro com proxy {proxy}: {e}')
-            time.sleep(3)
+            time.sleep(5)
     raise Exception('Todos os proxies falharam ou CAPTCHA persistiu')
-
 
 def get_automakers():
     words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
     url = 'https://www.fichacompleta.com.br/carros/marcas/'
+    headers = generate_headers_user_agent()
 
     try:
         response = requests.get(url, headers=headers)
@@ -76,7 +80,7 @@ def get_automakers():
 
         elif response.status_code == 403:
             print('Status_code: 403 usando proxy')
-            content_proxy = get_automakers_proxy(url)
+            content_proxy = get_automakers_proxy(url, headers)
             tree = html.fromstring(content_proxy)
             automakers = tree.xpath('//div/a/text()')
             automakers = [
@@ -88,7 +92,7 @@ def get_automakers():
 
         else:
             print(f'Erro ao acessar {url} - Status: {response.status_code}')
-            content_proxy = get_automakers_proxy(url)
+            content_proxy = get_automakers_proxy(url, headers)
             tree = html.fromstring(content_proxy)
             automakers = tree.xpath('//div/a/text()')
             automakers = [
@@ -99,5 +103,5 @@ def get_automakers():
             return automakers
 
     except requests.RequestException as e:
-        print(f"Erro ao fazer requisição: {e}")
+        print(f'Erro ao fazer requisicao: {e}')
         return []
