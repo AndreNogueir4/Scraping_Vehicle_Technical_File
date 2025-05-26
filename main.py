@@ -20,7 +20,7 @@ async def main():
         elif args.site == 'icarros':
             success = await run_icarros()
         elif args.site == 'full':
-            success = await run_fichacompleta() and await run_carrosnaweb()
+            success = await run_fichacompleta() and await run_carrosnaweb() and await run_icarros()
 
         if not success:
             logger.error(f'❌ Execução interrompida por erro nos dados')
