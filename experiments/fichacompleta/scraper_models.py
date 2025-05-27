@@ -30,7 +30,7 @@ def generate_headers_user_agent():
     }
     return headers
 
-def get_models_proxy(url, headers, max_retries=5):
+def get_models_proxy(url, headers, max_retries=5, timeout=30):
     for proxy in PROXIES:
         proxy_dict = {
             'http': proxy,
@@ -39,7 +39,7 @@ def get_models_proxy(url, headers, max_retries=5):
         for attempt in range(1, max_retries + 1):
             try:
                 print(f'Tentando proxy: {proxy} (tentativa {attempt}/{max_retries})')
-                response = requests.get(url, headers=headers, proxies=proxy_dict)
+                response = requests.get(url, headers=headers, proxies=proxy_dict, timeout=timeout)
 
                 if response.status_code == 200:
                     tree = html.fromstring(response.text)

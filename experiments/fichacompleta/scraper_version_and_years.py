@@ -31,7 +31,7 @@ def generate_headers_user_agent(automaker):
 
     return headers
 
-def get_version_years_proxy(url, headers, max_retries=5):
+def get_version_years_proxy(url, headers, max_retries=5, timeout=30):
     for proxy in PROXIES:
         proxy_dict = {
             'http': proxy,
@@ -40,7 +40,7 @@ def get_version_years_proxy(url, headers, max_retries=5):
         for attempt in range(1, max_retries + 1):
             try:
                 print(f'Tentando proxy: {proxy} (tentativa  {attempt}/{max_retries})')
-                response = requests.get(url, headers=headers, proxies=proxy_dict)
+                response = requests.get(url, headers=headers, proxies=proxy_dict, timeout=timeout)
 
                 if response.status_code == 200:
                     tree = html.fromstring(response.text)
@@ -61,6 +61,11 @@ def get_version_years(automaker, model):
 
     versions = {}
     years = []
+
+    model = model.replace('.', '-').replace(':', '-').replace(' ', '-')
+
+    if model.endswith('-'):
+        model = model[:-1]
 
     url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
     headers = generate_headers_user_agent(automaker)
