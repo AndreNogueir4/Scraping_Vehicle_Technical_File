@@ -2,7 +2,7 @@ import asyncio
 from scraper_automakers_async import get_automakers
 from scraper_models_async import get_models
 from scraper_version_and_year_async import get_version_years
-from db.mongo_experiments import insert_vehicle
+from db.mongo_experiments_async import insert_vehicle
 
 async def process_model(automaker, model):
     print(f'Processando modelo: {automaker} - {model}')
@@ -12,15 +12,15 @@ async def process_model(automaker, model):
     print(f'Versions: {versions}')
     print(f'Years: {years}')
 
-    insert_tasks = []
-    for (version_key, version_link) in versions.items():
-        for year in years:
-            insert_tasks.append(
-                insert_vehicle(automaker, model, version_key, year, version_link, reference='fichacompleta')
-            )
+    insert_tasks = [
+        insert_vehicle(automaker, model, version_key, year, version_link, reference='fichacompleta')
+        for (version_key, version_link) in versions.items()
+        for year in years
+    ]
 
-    inserted_documents = await asyncio.gather(*insert_tasks)
-    return inserted_documents
+    inserted_documents = await asyncio.gather(*insert_tasks, return_exceptions=True)
+    successful_inserts = [doc_id for doc_id in inserted_documents if doc_id is not None]
+    return successful_inserts
 
 async def process_automaker(automaker):
     print(f'Processando montadora: {automaker}')
