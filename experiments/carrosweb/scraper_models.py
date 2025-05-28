@@ -1,84 +1,108 @@
-import aiohttp
-import asyncio
+import requests
 import os
-import ssl
+import time
 from dotenv import load_dotenv
 from lxml import html
 from fake_useragent import UserAgent
-from typing import List
 
 load_dotenv()
-PROXIES = os.getenv('PROXIES', '').split(',') if os.getenv('PROXIES') else []
+PROXIES = os.getenv('PROXIES', '').split(',')
 
-words_to_remove = [
-    'Página Principal', 'Comparativo', 'Avaliação', 'Notícias', 'Opinião do Dono', 'Concessionárias',
-    'Ranking', 'Carros Mais Vendidos', 'Todos', 'Hatchback', 'Sedã', 'Perua', 'Minivan', 'Cupê',
-    'Conversível', 'SUV', 'Picape', 'Van', 'Furgão', 'Jipe', 'Chassi-cabine', 'Mapa do site',
-    'Sobre o site', 'Privacidade', 'Termos de uso', 'Mobile', 'Fale Conosco', 'Comunicar erro', 'Versão Clássica',
-    'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos', 'versão clássica', 'Versão clássica'
-]
-
-def generate_user_agent():
+def generate_headers_user_agent():
     ua = UserAgent()
-    return ua.random
-
-async def get_models(automaker: str, max_retries: int = 3) -> List[str]:
-    url = 'https://www.carrosnaweb.com.br/catalogofabricante.asp'
-    params = {'fabricante': automaker}
-
-    ssl_context = ssl.create_default_context()
-    ssl_context.minimum_version = ssl.TLSVersion.TLSv1_2
-
-    timeout = aiohttp.ClientTimeout(
-        total=60,
-        connect=60,
-        sock_connect=60,
-        sock_read=60
-    )
-
     headers = {
-        'User-Agent': generate_user_agent(),
+        'User-Agent': ua.random,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
         'Referer': 'https://www.carrosnaweb.com.br/avancada.asp',
-        'Connection': 'keep-alive'
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Sec-GPC': '1',
+        'Priority': 'u=0, i',
     }
+    return headers
 
-    for attempt in range(1, max_retries + 1):
-        try:
-            async with aiohttp.ClientSession(
-                    headers=headers,
-                    timeout=timeout,
-                    connector=aiohttp.TCPConnector(ssl=ssl_context)
-            ) as session:
+def get_models_proxy(url, headers, max_retries=5):
+    for proxy in PROXIES:
+        proxy_dict = {
+            'http': proxy,
+            'https': proxy
+        }
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f'Tentando proxy: {proxy} (tentativa  {attempt}/{max_retries})')
+                response = requests.get(url, headers=headers, proxies=proxy_dict)
 
-                try:
-                    async with session.get(url, params=params) as response:
-                        if response.status == 200:
-                            try:
-                                content = await response.text(encoding='utf-8')
-                            except UnicodeDecodeError:
-                                content = await response.text(encoding='iso-8859-1')
+                if response.status_code == 200:
+                    tree = html.fromstring(response.text)
+                    all_text = tree.xpath('//text')
+                    if any('Digite o código:' in text for text in all_text):
+                        print('CAPTCHA ainda presente com este proxy')
+                        continue
+                    return response.text
+                else:
+                    print(f'Proxy {proxy} falhou com status {response.status_code}')
+            except requests.RequestException as e:
+                print(f'Erro com proxy {proxy}: {e}')
+            time.sleep(5)
+    raise Exception('Todos os proxies falharam ou CAPTCHA persistiu')
 
-                            tree = html.fromstring(content)
-                            models = tree.xpath('//a/font/text()')
-                            return [
-                                model.strip().lower()
-                                for model in models
-                                if model.strip() and model.strip() not in words_to_remove
-                            ]
-                        else:
-                            print(f"Tentativa {attempt}: Status {response.status}")
-                            await asyncio.sleep(2 ** attempt)
+def get_models(automaker):
+    words_to_remove = [
+        'Página Principal', 'Comparativo', 'Avaliação', 'Notícias', 'Opinião do Dono', 'Concessionárias',
+        'Ranking', 'Carros Mais Vendidos', 'Todos', 'Hatchback', 'Sedã', 'Perua', 'Minivan', 'Cupê',
+        'Conversível', 'SUV', 'Picape', 'Van', 'Furgão', 'Jipe', 'Chassi-cabine', 'Mapa do site',
+        'Sobre o site', 'Privacidade', 'Termos de uso', 'Mobile', 'Fale Conosco', 'Comunicar erro',
+        'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos'
+    ]
+    url = 'https://www.carrosnaweb.com.br/catalogofabricante.asp'
+    headers = generate_headers_user_agent()
+    params = {'fabricante': automaker}
 
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    print(f"Tentativa {attempt}: Erro de conexão - {str(e)}")
-                    await asyncio.sleep(2 ** attempt)
-                    continue
+    try:
+        response = requests.get(url, params, headers=headers)
 
-        except Exception as e:
-            print(f"Tentativa {attempt}: Erro inesperado - {str(e)}")
-            await asyncio.sleep(2 ** attempt)
-            continue
+        if response.status_code == 200:
+            tree = html.fromstring(response.text)
+            error_message = tree.xpath('//text()')
+            if any("Ocorreu um erro." in msg for msg in error_message):
+                print('Mensagem de erro')
+                return []
 
-    return []
+            models = tree.xpath('//a/font/text()')
+            return [
+                model.strip().lower()
+                for model in models
+                if model.strip() and model.strip() not in words_to_remove
+            ]
+
+        elif response.status_code == 403:
+            print('Status_code: 403 usando proxy')
+            content_proxy = get_models_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
+            models = tree.xpath('//a/font/text()')
+            return [
+                model.strip().lower()
+                for model in models
+                if model.strip() and model.strip() not in words_to_remove
+            ]
+
+        else:
+            print(f'Erro ao acessar {url} - Status: {response.status_code}')
+            content_proxy = get_models_proxy(url, headers)
+            tree = html.fromstring(content_proxy)
+            models = tree.xpath('//a/font/text()')
+            return [
+                model.strip().lower()
+                for model in models
+                if model.strip() and model.strip() not in words_to_remove
+            ]
+
+    except requests.RequestException as e:
+        print(f'Erro ao fazer requisicao: {e}')
+        return []
