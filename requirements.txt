@@ -8,3 +8,4 @@ playwright
 fake-useragent
 unidecode
 pymongo
+httpx
