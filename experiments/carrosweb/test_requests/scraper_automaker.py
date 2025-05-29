@@ -14,7 +14,7 @@ def generate_headers_user_agent():
         'User-Agent': ua.random,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
-        'Referer': 'https://www.carrosnaweb.com.br/avancada.asp',
+        'Referer': 'https://www.carrosnaweb.com.br/',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
@@ -27,7 +27,7 @@ def generate_headers_user_agent():
     }
     return headers
 
-def get_models_proxy(url, headers, max_retries=5):
+def get_automakers_proxy(url, headers, max_retries=5):
     for proxy in PROXIES:
         proxy_dict = {
             'http': proxy,
@@ -35,7 +35,7 @@ def get_models_proxy(url, headers, max_retries=5):
         }
         for attempt in range(1, max_retries + 1):
             try:
-                print(f'Tentando proxy: {proxy} (tentativa  {attempt}/{max_retries})')
+                print(f'Tentando proxy: {proxy} (tentativa {attempt}/{max_retries})')
                 response = requests.get(url, headers=headers, proxies=proxy_dict)
 
                 if response.status_code == 200:
@@ -52,20 +52,19 @@ def get_models_proxy(url, headers, max_retries=5):
             time.sleep(5)
     raise Exception('Todos os proxies falharam ou CAPTCHA persistiu')
 
-def get_models(automaker):
+def get_automakers():
     words_to_remove = [
         'Página Principal', 'Comparativo', 'Avaliação', 'Notícias', 'Opinião do Dono', 'Concessionárias',
         'Ranking', 'Carros Mais Vendidos', 'Todos', 'Hatchback', 'Sedã', 'Perua', 'Minivan', 'Cupê',
         'Conversível', 'SUV', 'Picape', 'Van', 'Furgão', 'Jipe', 'Chassi-cabine', 'Mapa do site',
         'Sobre o site', 'Privacidade', 'Termos de uso', 'Mobile', 'Fale Conosco', 'Comunicar erro',
-        'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos'
+        'Carros mais Vendidos', 'Próximos Lançamentos', '\r\n\t\t', 'Comparativos', 'Versão Clássica'
     ]
-    url = 'https://www.carrosnaweb.com.br/catalogofabricante.asp'
+    url = 'https://www.carrosnaweb.com.br/avancada.asp'
     headers = generate_headers_user_agent()
-    params = {'fabricante': automaker}
 
     try:
-        response = requests.get(url, params, headers=headers)
+        response = requests.get(url, headers=headers)
 
         if response.status_code == 200:
             tree = html.fromstring(response.text)
@@ -74,34 +73,25 @@ def get_models(automaker):
                 print('Mensagem de erro')
                 return []
 
-            models = tree.xpath('//a/font/text()')
-            return [
-                model.strip().lower()
-                for model in models
-                if model.strip() and model.strip() not in words_to_remove
-            ]
+            automakers = tree.xpath('//a/font/text()')
+            automakers = [maker.lower() for maker in automakers if maker not in words_to_remove]
+            return automakers
 
         elif response.status_code == 403:
             print('Status_code: 403 usando proxy')
-            content_proxy = get_models_proxy(url, headers)
+            content_proxy = get_automakers_proxy(url, headers)
             tree = html.fromstring(content_proxy)
-            models = tree.xpath('//a/font/text()')
-            return [
-                model.strip().lower()
-                for model in models
-                if model.strip() and model.strip() not in words_to_remove
-            ]
+            automakers = tree.xpath('//a/font/text()')
+            automakers = [maker.lower() for maker in automakers if maker not in words_to_remove]
+            return automakers
 
         else:
             print(f'Erro ao acessar {url} - Status: {response.status_code}')
-            content_proxy = get_models_proxy(url, headers)
+            content_proxy = get_automakers_proxy(url, headers)
             tree = html.fromstring(content_proxy)
-            models = tree.xpath('//a/font/text()')
-            return [
-                model.strip().lower()
-                for model in models
-                if model.strip() and model.strip() not in words_to_remove
-            ]
+            automakers = tree.xpath('//a/font/text()')
+            automakers = [maker.lower() for maker in automakers if maker not in words_to_remove]
+            return automakers
 
     except requests.RequestException as e:
         print(f'Erro ao fazer requisicao: {e}')
