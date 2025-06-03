@@ -1,8 +1,10 @@
-import requests
+import httpx
+import asyncio
+import re
 from lxml import html
-from logger.logger import get_logger
-from utils.request_with_retry_proxy import fichacompleta_proxy
 from fake_useragent import UserAgent
+from logger.logger import get_logger
+from utils.fichacompleta.get_proxy import get_proxy
 
 REFERENCE = 'fichacompleta'
 logger = get_logger('scraper_technical_sheet', reference=REFERENCE)

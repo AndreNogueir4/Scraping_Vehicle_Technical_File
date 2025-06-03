@@ -40,3 +40,13 @@ async def insert_vehicle(automaker, model, version, year, consult_link, referenc
     }
     result = await vehicle_collection.insert_one(document)
     return result.inserted_id
+
+async def get_vehicles_by_auto_referer(automaker, reference):
+    cursor = db['vehicle'].find({
+        'automaker': automaker,
+        'reference': reference
+    })
+    return await cursor.to_list(length=None)
+
+async def insert_technical_sheet(technical_data):
+    await db['vehicle_specs'].insert_one(technical_data)

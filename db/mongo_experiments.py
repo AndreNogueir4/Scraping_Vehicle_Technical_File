@@ -37,3 +37,12 @@ def insert_vehicle(automaker, model, version, year, consult_link, reference):
     }
     result = vehicle_collection.insert_one(document)
     return result.inserted_id
+
+def get_vehicles_by_auto_referer(automaker, reference):
+    return list(db['vehicle'].find({
+        'automaker': automaker,
+        'reference': reference
+    }))
+
+def insert_technical_sheet(technical_data):
+    db['vehicle_specs'].insert_one(technical_data)

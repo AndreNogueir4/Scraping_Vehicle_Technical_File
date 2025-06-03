@@ -31,7 +31,7 @@ def generate_headers_user_agent(automaker):
 
     return headers
 
-async def get_version_years_proxy(url, headers, max_retries=5):
+async def get_version_years_proxy(url, headers, max_retries=20):
     if not PROXIES:
         print('Nenhum proxy configurado para tentar')
         raise Exception('Tentativa de usar proxies falhou: nenhum proxy fornecido')
