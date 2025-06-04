@@ -1,6 +1,6 @@
 import asyncio
 import re
-from typing import List, Dict, Tuple
+from typing import List, Dict, Optional
 from ..fichacompleta.automakers import AutomakerScraper
 from ..fichacompleta.models import ModelScraper
 from ..fichacompleta.versions_years import VersionYearScraper
@@ -46,8 +46,21 @@ class FichaCompletaRunner:
             logger.info(f'Encontradas {len(automakers)} marcas')
             return automakers
 
-    async def _process_automaker(self, automaker: Dict, model: Dict):
-        logger.info(f'🔧 Processando marca: {automaker['name']} {model['name']}')
+    async def _process_automaker(self, automaker: Dict):
+        logger.info(f'🔧 Processando marca: {automaker["name"]}')
+
+        async with ModelScraper() as scraper:
+            models = await scraper.get_models(automaker['url_slug'])
+
+            if not validate_scraped_data(models, f'models para {automaker["name"]}', self.reference):
+                logger.warning(f'Pulando marca {automaker["name"]} - sem modelos válidos')
+                return
+
+            for model in models:
+                await self._process_model(automaker, model)
+
+    async def _process_model(self, automaker: Dict, model: Dict):
+        logger.info(f'🛠️ Processando modelo: {automaker["name"]} {model["name"]}')
 
         async with VersionYearScraper() as scraper:
             versions, years = await scraper.get_versions_year(
@@ -70,7 +83,7 @@ class FichaCompletaRunner:
 
         await self._save_technical_specs(vehicle_id, automaker, model, version_name, version_url)
 
-    async def _save_vehicle(self, automaker: Dict, model: Dict, version: str) -> str:
+    async def _save_vehicle(self, automaker: Dict, model: Dict, version: str) -> Optional[str]:
         try:
             year_match = re.search(r'^\d{4}', version)
             year = year_match.group(0) if year_match else '0000'
@@ -92,13 +105,12 @@ class FichaCompletaRunner:
             result = await self.vehicle_repo.insert(vehicle_data)
             logger.info(f'✅ Veículo inserido: {automaker["name"]} {model["name"]} {version}')
             return result.inserted_id
-
         except Exception as e:
             logger.error(f'Erro ao salvar veículo: {str(e)}')
             return None
 
-    async def _save_technical_specs(self, vehicle_id: str, automaker: Dict, model: Dict, version: str,
-                                    version_url: str):
+    async def _save_technical_specs(self, vehicle_id: str, automaker: Dict, model: Dict,
+                                    version: str, version_url: str):
         try:
             async with TechnicalSheetScraper() as scraper:
                 sheet = await scraper.get_technical_sheet(
@@ -127,9 +139,10 @@ class FichaCompletaRunner:
         except Exception as e:
             logger.error(f'Erro ao obter ficha técnica: {str(e)}')
 
-    async def run_fichacompleta():
-        runner = FichaCompletaRunner()
-        return await runner.run()
+
+async def run_fichacompleta():
+    runner = FichaCompletaRunner()
+    return await runner.run()
 
 
 if __name__ == '__main__':
