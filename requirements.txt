@@ -9,3 +9,5 @@ fake-useragent
 unidecode
 pymongo
 httpx
+fastapi
+unicorn[standard]
