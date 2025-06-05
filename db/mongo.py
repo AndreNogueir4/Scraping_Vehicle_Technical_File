@@ -93,28 +93,15 @@ async def insert_log(log_entry, reference=None):
     log_entry['reference'] = reference
     await logs_collection.insert_one(log_entry)
 
-async def insert_vehicle_specs(automaker, model, year, version, information, equipment):
+async def insert_vehicle_specs(technical_data):
     """ Insere um documento completo na collection vehicle_specs """
     from logger.logger import get_logger
     logger = get_logger()
 
-    model_clean = remove_accents(model.lower())
-
-    if not equipment:
-        equipment = ['Equipamentos não especificados para esse modelo']
-
-    document = {
-        'automaker': automaker.lower(),
-        'model': model_clean,
-        'year': year,
-        'version': version,
-        'information': information,
-        'equipment': equipment
-    }
     try:
-        await vehicle_specs_collection.insert_one(document)
-        logger.info(f'Documento inserido na vehicle_specs: {automaker} {model} {year}')
-        return document
+        await vehicle_specs_collection.insert_one(technical_data)
+        logger.info(f'Documento inserido na vehicle_specs')
+        return True
     except Exception as e:
         logger.error(f'Erro ao inserir em vehicle_specs: {e}')
         return None

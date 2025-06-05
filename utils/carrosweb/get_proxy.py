@@ -5,13 +5,13 @@ from lxml import html
 from dotenv import load_dotenv
 from logger.logger import get_logger
 
-REFERENCE = 'fichacompleta'
+REFERENCE = 'carrosweb'
 logger = get_logger('get_proxy', reference=REFERENCE)
 
 load_dotenv()
 PROXIES = [p.strip() for p in os.getenv('PROXIES', '').split(',') if p.strip()]
 
-async def get_proxy(url, headers, max_retries=5):
+async def get_proxy(url, headers, params=None, max_retries=5):
     if not PROXIES:
         logger.warning('Nenhum proxy configurado para tentar')
         raise Exception('Tentativa de usar proxies falhou: nenhum proxy fornecido')
@@ -31,13 +31,13 @@ async def get_proxy(url, headers, max_retries=5):
                 }
 
                 async with httpx.AsyncClient(headers=headers, proxies=proxies, timeout=30.0) as proxy_client:
-                    response = await proxy_client.get(url)
+                    response = await proxy_client.get(url, params)
                     response_text = response.text
 
                     if response.status_code == 200:
                         tree = html.fromstring(response_text)
-                        all_text = tree.xpath('//text')
-                        if any('Digite o código:' in text for text in all_text):
+                        all_text = tree.xpath('//text()')
+                        if any('Ocorreu um erro.' in text for text in all_text):
                             logger.warning(f'CAPTCHA presente com proxy: {proxy}')
                         return response_text
                     else:
