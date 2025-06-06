@@ -42,12 +42,12 @@ async def get_technical_sheet(automaker, model, href):
                 tree = html.fromstring(response_text)
                 all_text = tree.xpath('//text()')
                 if any('Digite o código:' in text for text in all_text):
-                    logger.warning('CAPTCHA encontrado na resposta, tentando com proxies...')
+                    logger.warning('CAPTCHA found in response, trying with proxies')
                     try:
                         response_text = await get_proxy(url, headers)
                         tree = html.fromstring(response_text)
                     except Exception as proxy_e:
-                        logger.warning(f'Falha ao tentar com proxies após CAPTCHA: {proxy_e}')
+                        logger.warning(f'Failed to attempt with proxies after CAPTCHA: {proxy_e}')
                         return []
 
                 keys_dict = tree.xpath('//div[1]/b/text()')
@@ -60,12 +60,12 @@ async def get_technical_sheet(automaker, model, href):
                 equipments = [equip.strip() for equip in equipments if equip.strip()]
 
                 if not equipments:
-                    equipments = ['Equipamentos nao listados para esse modelo']
+                    equipments = ['Equipment not listed for this model']
 
                 return result, equipments
 
             elif response.status_code == 403:
-                logger.warning('Status_code: 403 - Bloqueado. Tentando com proxies...')
+                logger.warning('Status_code: 403 - Blocked, trying with proxies')
                 try:
                     response_text = await get_proxy(url, headers)
                     tree = html.fromstring(response_text)
@@ -80,15 +80,15 @@ async def get_technical_sheet(automaker, model, href):
                     equipments = [equip.strip() for equip in equipments if equip.strip()]
 
                     if not equipments:
-                        equipments = ['Equipamentos nao listados para esse modelo']
+                        equipments = ['Equipment not listed for this model']
 
                     return result, equipments
                 except Exception as proxy_e:
-                    logger.warning(f'Falha ao tentar com proxies após 403: {proxy_e}')
+                    logger.warning(f'Failed to try with proxies after 403: {proxy_e}')
                     return []
 
             else:
-                logger.warning(f'Erro inicial {response.status_code}. Tentando com proxies...')
+                logger.warning(f'Initial error {response.status_code}. Trying with proxies')
                 try:
                     response_text = await get_proxy(url, headers)
                     tree = html.fromstring(response_text)
@@ -103,16 +103,16 @@ async def get_technical_sheet(automaker, model, href):
                     equipments = [equip.strip() for equip in equipments if equip.strip()]
 
                     if not equipments:
-                        equipments = ['Equipamentos nao listados para esse modelo']
+                        equipments = ['Equipment not listed for this model']
 
                     return result, equipments
                 except Exception as proxy_e:
-                    logger.warning(f'Falha ao tentar com proxies após erro {response.status_code}: {proxy_e}')
+                    logger.warning(f'Failed to attempt with proxies after error {response.status_code}: {proxy_e}')
                     return []
 
         except httpx.RequestError as e:
-            logger.warning(f'Erro de requisição httpx na requisição inicial: {e}')
-            logger.info('Tentando com proxies devido ao erro inicial...')
+            logger.warning(f'httpx request error on initial request: {e}')
+            logger.info('Trying with proxies due to inital error')
             try:
                 response_text = await get_proxy(url, headers)
                 tree = html.fromstring(response_text)
@@ -127,16 +127,16 @@ async def get_technical_sheet(automaker, model, href):
                 equipments = [equip.strip() for equip in equipments if equip.strip()]
 
                 if not equipments:
-                    equipments = ['Equipamentos nao listados para esse modelo']
+                    equipments = ['Equipment not listed for this model']
 
                 return result, equipments
             except Exception as proxy_e:
-                logger.warning(f'Falha ao tentar com proxies após erro inicial: {proxy_e}')
+                logger.warning(f'Failed to try with proxies after initial error: {proxy_e}')
                 return []
 
         except asyncio.TimeoutError:
-            logger.warning('Timeout na requisição inicial')
-            logger.info('Tentando com proxies devido ao timeout inicial...')
+            logger.warning('Timeout on initial request')
+            logger.info('Trying with proxies due to initial timeout')
             try:
                 response_text = await get_proxy(url, headers)
                 tree = html.fromstring(response_text)
@@ -151,13 +151,13 @@ async def get_technical_sheet(automaker, model, href):
                 equipments = [equip.strip() for equip in equipments if equip.strip()]
 
                 if not equipments:
-                    equipments = ['Equipamentos nao listados para esse modelo']
+                    equipments = ['Equipment not listed for this model']
 
                 return result, equipments
             except Exception as proxy_e:
-                logger.warning(f'Falha ao tentar com proxies após timeout inicial: {proxy_e}')
+                logger.warning(f'Failed to attempt with proxies after initial timeout: {proxy_e}')
                 return []
 
         except Exception as e:
-            logger.warning(f'Erro inesperado na função principal: {e}')
+            logger.warning(f'Unexpected error in main function: {e}')
             return []

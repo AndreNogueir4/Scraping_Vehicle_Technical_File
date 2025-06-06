@@ -17,10 +17,10 @@ async def main():
             success = await run_fichacompleta()
 
         if not success:
-            logger.error(f'❌ Execução interrompida por erro nos dados')
+            logger.error(f'❌ Execution stopped due to data error')
             sys.exit(1)
     except Exception as e:
-        logger.error(f'⛔ Erro inesperado: {e}')
+        logger.error(f'⛔ Unexpected error: {e}')
         sys.exit(1)
 
 if __name__ == '__main__':

@@ -13,18 +13,18 @@ PROXIES = [p.strip() for p in os.getenv('PROXIES', '').split(',') if p.strip()]
 
 async def get_proxy(url, headers, max_retries=5):
     if not PROXIES:
-        logger.warning('Nenhum proxy configurado para tentar')
-        raise Exception('Tentativa de usar proxies falhou: nenhum proxy fornecido')
+        logger.warning('No proxy configured to try')
+        raise Exception('Attempt to use proxies failed: No proxy provided')
 
     for proxy in PROXIES:
         if not proxy.startswith('http://') and not proxy.startswith('https://'):
-            logger.warning(f'Formato de proxy inválidos: {proxy}. Deve começar com http:// ou https://')
+            logger.warning(f'Invalid proxy format: {proxy}. Must start with http:// or https://')
             continue
 
-        logger.info(f'Tentando proxy: {proxy}')
+        logger.info(f'Trying proxy: {proxy}')
         for attempt in range(1, max_retries + 1):
             try:
-                logger.info(f'Tentativa {attempt}/{max_retries} com proxy {proxy}')
+                logger.info(f'Attempt {attempt}/{max_retries} with proxy {proxy}')
                 proxies = {
                     'http://': proxy,
                     'https://': proxy
@@ -38,20 +38,20 @@ async def get_proxy(url, headers, max_retries=5):
                         tree = html.fromstring(response_text)
                         all_text = tree.xpath('//text')
                         if any('Digite o código:' in text for text in all_text):
-                            logger.warning(f'CAPTCHA presente com proxy: {proxy}')
+                            logger.warning(f'CAPTCHA present with proxy: {proxy}')
                         return response_text
                     else:
-                        logger.warning(f'Proxy {proxy} falhou com status: {response.status_code}')
+                        logger.warning(f'Proxy {proxy} failed with status: {response.status_code}')
 
             except httpx.RequestError as e:
-                logger.warning(f'Erro de requisição httpx com proxy: {proxy} (tentativa {attempt}): {e}')
+                logger.warning(f'https request error with proxy: {proxy} (attempt {attempt}): {e}')
             except asyncio.TimeoutError:
-                logger.warning(f'Timeout com proxy: {proxy} (tentativa {attempt})')
+                logger.warning(f'Timeout with proxy: {proxy} (attempt {attempt})')
             except Exception as e:
-                logger.warning(f'Erro inesperado com proxy: {proxy} (tentativa {attempt}): {e}')
+                logger.warning(f'Unexpected error with proxy: {proxy} (attempt {attempt}): {e}')
 
             if attempt < max_retries:
                 await asyncio.sleep(5)
 
-        logger.warning(f'Falha em todas as tentativas com proxy: {proxy}')
-    raise Exception('Todos os proxies falharam, e requisição não foi obtida após todas as tentativas')
+        logger.warning(f'All attempts with proxy failed: {proxy}')
+    raise Exception('All proxies failed, and request was not successful after all attempts')

@@ -11,7 +11,7 @@ from logger.logger import get_logger
 logger = get_logger('fichacompleta', 'fichacompleta')
 
 async def run_fichacompleta(phase=3):
-    logger.info('🚗 Iniciando scrapers do Ficha Completa')
+    logger.info('🚗 Starting Full Sheet scrapers')
     reference = 'fichacompleta'
 
     automakers = await fc_automakers.get_automakers()
@@ -35,7 +35,7 @@ async def run_fichacompleta(phase=3):
 
                 versions_items = list(versions.items())
                 if len(versions_items) != len(years):
-                    logger.warning(f"Discrepância: {len(versions_items)} versões vs {len(years)} anos")
+                    logger.warning(f"Discrepancy: {len(versions_items)} versions vs {len(years)} years")
 
                 num_pares = min(len(versions_items), len(years))
 
@@ -52,7 +52,6 @@ async def run_fichacompleta(phase=3):
             version_key = vehicle['version']
             year = vehicle['year']
 
-            # Aqui, talvez precise de alguma lógica para obter o link
             versions, _ = await fc_version.get_version_years(automaker, model)
             link_query = versions.get(version_key)
 
@@ -68,11 +67,11 @@ async def run_fichacompleta(phase=3):
                         'equipments': equipments
                     }
                     await insert_vehicle_specs(technical_data)
-                    logger.info(f'Ficha técnica inserida para: {link_query}')
+                    logger.info(f'Technical sheet inserted for: {link_query}')
                 else:
-                    logger.warning(f'Nenhum dado técnico encontrado para: {link_query}')
+                    logger.warning(f'No technical data found for: {link_query}')
             else:
-                logger.warning(f'Link não encontrado para versão: {version_key}')
+                logger.warning(f'Link not found for version: {version_key}')
 
-    logger.info('✅ Finalizado Ficha Completa')
+    logger.info('✅ Completed Complete Sheet')
     return True
