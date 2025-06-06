@@ -28,7 +28,7 @@ async def insert_vehicle(automaker, model, year, version, reference):
 
     exists = await vehicle_exists(automaker, model, year, version, reference)
     if exists:
-        logger.info(f'Veículo já existe no banco: {automaker} {model} {year} ({reference})')
+        logger.info(f'Vehicle already exists in the bank: {automaker} {model} {year} ({reference})')
         return None
 
     document = {
@@ -40,7 +40,7 @@ async def insert_vehicle(automaker, model, year, version, reference):
         'version': version,
     }
     await collection.insert_one(document)
-    logger.info(f'Documento inserido: {automaker} {model_clean} {year} ({reference})')
+    logger.info(f'Document inserted: {automaker} {model_clean} {year} ({reference})')
     return document
 
 async def vehicle_exists(automaker, model, year, version, reference):
@@ -66,7 +66,7 @@ async def find_vehicle_by_id(doc_id):
         document = await collection.find_one({'_id': ObjectId(doc_id)})
         return document
     except Exception as e:
-        logger.error(f'Erro ao buscar documento: {e}')
+        logger.error(f'Error fetching document: {e}')
         return None
 
 async def update_vehicle(doc_id, update_fields):
@@ -78,16 +78,14 @@ async def update_vehicle(doc_id, update_fields):
             {'_id': ObjectId(doc_id)},
             {'$set': update_fields}
         )
-        logger.info(f'Documento atualizado, modificados: {result.modified_count}')
+        logger.info(f'Document updated, modified: {result.modified_count}')
         return result.modified_count
     except Exception as e:
-        logger.error(f'Erro ao atualizar documento: {e}')
+        logger.error(f'Error updating document: {e}')
         return 0
 
 async def insert_log(log_entry, reference=None):
     """ Insere um log no MongoDB """
-    from logger.logger import get_logger
-    logger = get_logger()
 
     log_entry['timestamp'] = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
     log_entry['reference'] = reference
@@ -100,10 +98,10 @@ async def insert_vehicle_specs(technical_data):
 
     try:
         await vehicle_specs_collection.insert_one(technical_data)
-        logger.info(f'Documento inserido na vehicle_specs')
+        logger.info(f'Document inserted in vehicle_specs')
         return True
     except Exception as e:
-        logger.error(f'Erro ao inserir em vehicle_specs: {e}')
+        logger.error(f'Error inserting into vehicle_specs: {e}')
         return None
 
 async def get_vehicles_by_reference(reference):
@@ -114,8 +112,8 @@ async def get_vehicles_by_reference(reference):
     try:
         cursor = collection.find({'reference': reference})
         documents = await cursor.to_list(length=None)
-        logger.info(f'{len(documents)} documentos encontrados com referência: {reference}')
+        logger.info(f'{len(documents)} documents found with reference: {reference}')
         return documents
     except Exception as e:
-        logger.error(f'Erro ao buscar veículos por referência ({reference}): {e}')
+        logger.error(f'Error searching for vehicles by reference ({reference}): {e}')
         return []
