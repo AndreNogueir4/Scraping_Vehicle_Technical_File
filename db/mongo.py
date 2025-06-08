@@ -2,6 +2,9 @@ import unicodedata
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import datetime
 from bson.objectid import ObjectId
+from logger.logger import get_logger
+
+logger = get_logger()
 
 mongo_uri = 'mongodb://localhost:27017'
 mongo_db_name = 'technical_sheet'
@@ -21,9 +24,6 @@ def remove_accents(text):
 
 async def insert_vehicle(automaker, model, year, version, reference):
     """ Insere um novo documento no MongoDB com referência ao site de origem """
-    from logger.logger import get_logger
-    logger = get_logger()
-
     model_clean = remove_accents(model.lower())
 
     exists = await vehicle_exists(automaker, model, year, version, reference)
@@ -33,6 +33,7 @@ async def insert_vehicle(automaker, model, year, version, reference):
 
     document = {
         'timestamp': datetime.now().strftime('%d-%m-%Y %H:%M:%S'),
+        'status': 'todo',
         'reference': reference,
         'automaker': automaker.lower(),
         'model': model_clean,
@@ -59,9 +60,6 @@ async def vehicle_exists(automaker, model, year, version, reference):
 
 async def find_vehicle_by_id(doc_id):
     """ Busca um documento pelo seu _id """
-    from logger.logger import get_logger
-    logger = get_logger()
-
     try:
         document = await collection.find_one({'_id': ObjectId(doc_id)})
         return document
@@ -70,9 +68,6 @@ async def find_vehicle_by_id(doc_id):
         return None
 
 async def update_vehicle(doc_id, update_fields):
-    from logger.logger import get_logger
-    logger = get_logger()
-
     try:
         result = await collection.update_one(
             {'_id': ObjectId(doc_id)},
@@ -86,16 +81,12 @@ async def update_vehicle(doc_id, update_fields):
 
 async def insert_log(log_entry, reference=None):
     """ Insere um log no MongoDB """
-
     log_entry['timestamp'] = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
     log_entry['reference'] = reference
     await logs_collection.insert_one(log_entry)
 
 async def insert_vehicle_specs(technical_data):
     """ Insere um documento completo na collection vehicle_specs """
-    from logger.logger import get_logger
-    logger = get_logger()
-
     try:
         await vehicle_specs_collection.insert_one(technical_data)
         logger.info(f'Document inserted in vehicle_specs')
@@ -106,14 +97,19 @@ async def insert_vehicle_specs(technical_data):
 
 async def get_vehicles_by_reference(reference):
     """ Retorna todos os documentos da collection vehicle com base na referencia """
-    from logger.logger import get_logger
-    logger = get_logger()
-
     try:
-        cursor = collection.find({'reference': reference})
+        await collection.update_many(
+            {'reference': reference, 'status': 'todo'},
+            {'$set': {'status': 'in_progress'}}
+        )
+        cursor = collection.find({'reference': reference, 'status': 'in_progress'})
         documents = await cursor.to_list(length=None)
-        logger.info(f'{len(documents)} documents found with reference: {reference}')
+        logger.info(f'{len(documents)} documents found and marked as in_progress for reference: {reference}')
         return documents
     except Exception as e:
-        logger.error(f'Error searching for vehicles by reference ({reference}): {e}')
+        logger.error(f'Error searching/updating vehicles by reference ({reference}): {e}')
         return []
+
+async def sheet_code_exists(code):
+        result = await collection.find_one({'sheet_code': code})
+        return result is not None

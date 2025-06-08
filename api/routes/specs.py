@@ -4,7 +4,7 @@ from bson import ObjectId
 from db.mongo import get_database
 from api.schemas.specs import VehicleSpec
 
-router = APIRouter()
+router = APIRouter(prefix='/api/specs', tags=['Ficha Técnica'])
 
 @router.get('/{automaker}', response_model=List[str])
 async def listar_modelos_por_montadora(automaker: str = Path(..., description='Nome da montadora')):
@@ -18,7 +18,7 @@ async def listar_modelos_por_montadora(automaker: str = Path(..., description='N
     if not modelos:
         raise HTTPException(status_code=404, detail="Montadora não encontrada")
 
-    return list(modelos)
+    return sorted(list(modelos))
 
 @router.get('/{automaker}/{model}', response_model=List[dict])
 async def listar_versions_e_anos(

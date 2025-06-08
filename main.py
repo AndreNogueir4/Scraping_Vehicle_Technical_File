@@ -12,9 +12,9 @@ async def main():
 
     try:
         if args.site == 'fichacompleta':
-            success = await run_fichacompleta()
+            success = await run_fichacompleta(phase=args.phase)
         elif args.site == 'full':
-            success = await run_fichacompleta()
+            success = await run_fichacompleta(phase=args.phase)
 
         if not success:
             logger.error(f'❌ Execution stopped due to data error')

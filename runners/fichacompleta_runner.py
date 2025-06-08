@@ -4,8 +4,9 @@ from scrapers.fichacompleta import (
     scraper_version_and_years as fc_version,
     scraper_technical_sheet as fc_technical
 )
-from db.mongo import insert_vehicle, get_vehicles_by_reference, insert_vehicle_specs
+from db.mongo import insert_vehicle, get_vehicles_by_reference, insert_vehicle_specs, sheet_code_exists
 from runners.common import validate_scraper_data
+from utils.generate_sheet_code import generate_unique_sheet_code
 from logger.logger import get_logger
 
 logger = get_logger('fichacompleta', 'fichacompleta')
@@ -58,7 +59,10 @@ async def run_fichacompleta(phase=3):
             if link_query:
                 result, equipments = await fc_technical.get_technical_sheet(automaker, model, link_query)
                 if result or equipments:
+                    sheet_code = await generate_unique_sheet_code(sheet_code_exists)
+
                     technical_data = {
+                        'sheet_code': sheet_code,
                         'automaker': automaker,
                         'model': model,
                         'version': str(version_key),
