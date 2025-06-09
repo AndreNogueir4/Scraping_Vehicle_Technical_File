@@ -1,4 +1,6 @@
 import logging
+import sys
+
 import colorlog
 import datetime
 import asyncio
@@ -39,16 +41,29 @@ def get_logger(name: str = 'scraper', reference: str = None):
     logger.setLevel(logging.DEBUG)
     logger.propagate = False
 
-    stream_handler = colorlog.StreamHandler()
-    stream_handler.setFormatter(colorlog.ColoredFormatter(
-        '%(log_color)s%(asctime)s [%(levelname)s] - %(message)s',
-        log_colors={
+    is_test = any('pytest' in arg for arg in sys.argv)
+
+    if is_test:
+        log_colors = {
+            'DEBUG': 'bold_purple',
+            'INFO': 'bold_purple',
+            'WARNING': 'bold_purple',
+            'ERROR': 'bold_purple',
+            'CRITICAL': 'bold_purple',
+        }
+    else:
+        log_colors = {
             'DEBUG': 'cyan',
             'INFO': 'green',
             'WARNING': 'yellow',
             'ERROR': 'red',
             'CRITICAL': 'bold_red',
         }
+
+    stream_handler = colorlog.StreamHandler()
+    stream_handler.setFormatter(colorlog.ColoredFormatter(
+        '%(log_color)s%(asctime)s [%(levelname)s] - %(message)s',
+        log_colors=log_colors
     ))
     logger.addHandler(stream_handler)
 

@@ -12,7 +12,7 @@ from logger.logger import get_logger
 logger = get_logger('fichacompleta', 'fichacompleta')
 
 async def run_fichacompleta(phase=3):
-    logger.info('🚗 Starting Full Sheet scrapers')
+    logger.info('🚗 Starting Full Sheet scrapers (fichacompleta)')
     reference = 'fichacompleta'
 
     automakers = await fc_automakers.get_automakers()
@@ -48,6 +48,7 @@ async def run_fichacompleta(phase=3):
     if phase in [2, 3]:
         vehicles = await get_vehicles_by_reference(reference)
         for vehicle in vehicles:
+            vehicle_id = vehicle['_id']
             automaker = vehicle['automaker']
             model = vehicle['model']
             version_key = vehicle['version']
@@ -70,7 +71,7 @@ async def run_fichacompleta(phase=3):
                         'result': result,
                         'equipments': equipments
                     }
-                    await insert_vehicle_specs(technical_data)
+                    await insert_vehicle_specs(technical_data, vehicle_id)
                     logger.info(f'Technical sheet inserted for: {link_query}')
                 else:
                     logger.warning(f'No technical data found for: {link_query}')
