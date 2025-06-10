@@ -12,6 +12,8 @@ db = client[mongo_db_name]
 collection = db[mongo_collection]
 logs_collection = db['logs']
 vehicle_specs_collection = db['vehicle_specs']
+users_collection = db['users']
+request_logs_collection = db['request_logs']
 
 def remove_accents(text):
     return ''.join(
@@ -130,3 +132,35 @@ async def get_vehicles_by_reference(reference):
 async def sheet_code_exists(code):
         result = await collection.find_one({'sheet_code': code})
         return result is not None
+
+def vehicle_helper(vehicle) -> dict:
+    return {
+        'id': str(vehicle['_id']),
+        'sheet_code': vehicle['sheet_code'],
+        'automaker': vehicle['automaker'],
+        'model': vehicle['model'],
+        'version': vehicle['version'],
+        'year': vehicle['year'],
+        'result': vehicle['result'],
+        'equipments': vehicle['equipments']
+    }
+
+def user_helper(user) -> dict:
+    return {
+        'id': str(user['_id']),
+        'username': user['username'],
+        'email': user['email'],
+        'api_key': user['api_key'],
+        'is_active': user['is_active'],
+        'created_at': user['created_at'],
+        'last_used': user.get('last_used')
+    }
+
+def request_log_helper(log) -> dict:
+    return {
+        'id': str(log['_id']),
+        'endpoint': log['endpoint'],
+        'params': log['params'],
+        'timestamp': log['timestamp'],
+        'user_id': log['user_id']
+    }
