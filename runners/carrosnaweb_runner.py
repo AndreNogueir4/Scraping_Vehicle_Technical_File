@@ -1,3 +1,4 @@
+import asyncio
 from scrapers.carrosweb import (
     scraper_automakers as cw_automakers,
     scraper_models as cw_models,
@@ -11,6 +12,7 @@ from utils.generate_sheet_code import generate_unique_sheet_code
 from logger.logger import get_logger
 
 logger = get_logger('carrosweb', 'carrosweb')
+semaphore = asyncio.Semaphore(5)
 
 async def run_carrosweb(phase=3):
     logger.info('🚗 Starting Full Sheet scrapers (carrosweb)')
@@ -20,59 +22,38 @@ async def run_carrosweb(phase=3):
     if not await validate_scraper_data(automakers, 'automakers', 'carrosweb'):
         return False
 
+    async def process_year(automaker, model, year):
+        async with semaphore:
+            versions = await cw_version_link_consultation.get_versions_link(automaker, model, year)
+            if not await validate_scraper_data(versions, f'versions para {automaker}/{model}/{year}', 'carrosweb'):
+                return False
+
+            tasks = [
+                insert_vehicle(automaker, model, year, version_link, reference)
+                for version_name, version_link in versions.items()
+            ]
+            await asyncio.gather(*tasks)
+
+    async def process_model(automaker, model):
+        years = await cw_years.get_years(automaker, model)
+        if not await validate_scraper_data(years, f'years para {automaker}/{model}', 'carrosweb'):
+            return False
+        await asyncio.gather(*[process_year(automaker, model, year) for year in years])
+
     if phase in [1, 3]:
+        model_tasks = []
+
         for automaker in automakers:
             models = await cw_models.get_models(automaker)
-            if not await validate_scraper_data(models, f'models para {automaker}',
-                                               'carrosweb'):
+            if not await validate_scraper_data(models, f'models para {automaker}', 'carrosweb'):
                 continue
-
             for model in models:
-                years = await cw_years.get_years(automaker, model)
-                if not await validate_scraper_data(years, f'years para {automaker}/{model}',
-                                                   'carrosweb'):
-                    continue
+                model_tasks.append(process_model(automaker, model))
 
-                for year in years:
-                    version_link = cw_version_link_consultation.get_versions_link(automaker, model, year)
-                    if not await validate_scraper_data(version_link,
-                                                       f'version e link para {automaker}/{model}/{year}',
-                                                       'carrosweb'):
-                        continue
-
-                    await insert_vehicle(automaker, model, year, version_link, reference)
+        await asyncio.gather(*model_tasks)
 
     if phase in [2, 3]:
-        vehicles = await get_vehicles_by_reference(reference)
-        for vehicle in vehicles:
-            vehicle_id = vehicle['_id']
-            automaker = vehicle['automaker']
-            model = vehicle['model']
-            version_key = vehicle['version']
-            year = vehicle['year']
-
-            link_query = version_key
-
-            if link_query:
-                result, equipments = await cw_technical_sheet(automaker, model, year, link_query)
-                if result or equipments
-                    sheet_code = await generate_unique_sheet_code(sheet_code_exists)
-
-                    technical_data = {
-                        'sheet_code': sheet_code,
-                        'automaker': automaker,
-                        'model': model,
-                        'version': str(version_key),
-                        'year': str(year),
-                        'result': result,
-                        'equipments': equipments
-                    }
-                    await insert_vehicle_specs(technical_data, vehicle_id)
-                    logger.info(f'Technical sheet inserted for: {link_query}')
-                else:
-                    logger.warning(f'No technical data found for: {link_query}')
-            else:
-                logger.warning(f'Link not found for version: {version_key}')
+        pass
 
     logger.info('✅ Completed Complete Sheet')
     return True

@@ -30,31 +30,6 @@ def generate_headers_user_agent(automaker):
     }
     return headers
 
-def get_years_proxy(url, headers, max_retries=5):
-    for proxy in PROXIES:
-        proxy_dict = {
-            'http': proxy,
-            'https': proxy
-        }
-        for attempt in range(1, max_retries + 1):
-            try:
-                print(f'Tentando proxy: {proxy} (tentativa {attempt}/{max_retries})')
-                response = requests.get(url, headers=headers, proxies=proxy_dict)
-
-                if response.status_code == 200:
-                    tree = html.fromstring(response.text)
-                    all_text = tree.xpath('//text')
-                    if any('Digite o código:' in text for text in all_text):
-                        print('CAPTCHA ainda presente com este proxy')
-                        continue
-                    return response.text
-                else:
-                    print(f'Proxy {proxy} falhou com status {response.status_code}')
-            except requests.RequestException as e:
-                print(f'Erro com proxy {proxy}: {e}')
-            time.sleep(5)
-    raise Exception('Todos os proxies falharam ou CAPTCHA persistiu')
-
 def get_years(automaker, model):
     words_to_remove = [
         'Página Principal', 'Comparativo', 'Avaliação', 'Notícias', 'Opinião do Dono', 'Concessionárias',
@@ -84,18 +59,12 @@ def get_years(automaker, model):
 
         elif response.status_code == 403:
             print('Status_code: 403 usando proxy')
-            content_proxy = get_years_proxy(url, headers)
-            tree = html.fromstring(content_proxy)
-            years = tree.xpath('//a/font/text()')
-            years = [year.lower() for year in years if year not in words_to_remove]
+            years = []
             return years
 
         else:
             print(f'Erro ao acessar {url} - Status: {response.status_code}')
-            content_proxy = get_years_proxy(url, headers)
-            tree = html.fromstring(content_proxy)
-            years = tree.xpath('//a/font/text()')
-            years = [year.lower() for year in years if year not in words_to_remove]
+            years = []
             return years
 
     except requests.RequestException as e:
