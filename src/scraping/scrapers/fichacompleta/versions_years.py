@@ -1,51 +1,159 @@
+import httpx
+import asyncio
 import re
-from typing import Dict, List, Tuple
 from lxml import html
-from .base_scraper import BaseScraper
-from ..shared.schemas import VersionYear
-from ..shared.exceptions import ScraperError
+from fake_useragent import UserAgent
+from src.logger.logger import get_logger
+from src.utils.fichacompleta.get_proxy import get_proxy
 
-class VersionYearScraper(BaseScraper):
-    WORDS_TO_REMOVE = [
-        'Quem Somos',
-        'Contato',
-        'Política de Privacidade',
-        'Ver mais',
-        'Carregando',
-        'Carregando...'
-    ]
+REFERENCE = 'fichacompleta'
+logger = get_logger('scraper_version_and_years', reference=REFERENCE)
 
-    async def get_versions_year(self, automaker: str, model: str) -> Tuple[Dict[str, str], List[str]]:
-        model = self._normalize_model_slug(model)
-        url = f'{self.BASE_URL}/carros/{automaker}/{model}/'
+def generate_headers_user_agent(automaker):
+    ua = UserAgent()
+    reference = f'https://www.fichacompleta.com.br/carros/{automaker}/'
 
+    headers = {
+        'User-Agent': ua.random,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Connection': 'keep-alive',
+        'Referer': reference,
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'DNT': '1',
+        'Sec-GPC': '1',
+        'Priority': 'u=0, i',
+    }
+
+    return headers
+
+async def get_version_years(automaker, model):
+    words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
+    versions = {}
+    years = []
+
+    model = model.replace('.', '-').replace(':', '-').replace(' ', '-')
+    if model.endswith('-'):
+        model = model[:-1]
+
+    url = f'https://www.fichacompleta.com.br/carros/{automaker}/{model}/'
+    headers = generate_headers_user_agent(automaker)
+
+    async with httpx.AsyncClient(headers=headers, timeout=30.0) as client:
         try:
-            tree = await self.fetch_page(url)
-            versions, years = self._parse_versions_years(tree, automaker, model)
-            self.logger.info(f'Encontradas {len(versions)} versões e {len(years)} anos para {automaker}/{model}')
-            return versions, years
-        except ScraperError as e:
-            self.logger.error(f'Falha ao obter versões para {automaker}/{model}: {str(e)}')
-            return {}, []
+            response = await client.get(url)
+            response_text = response.text
 
-    def _normalize_model_slug(self, model: str) -> str:
-        return (model.replace('.', '-')
-                .replace(':', '-').replace(' ', '-').rstrip('-'))
+            if response.status_code == 200:
+                tree = html.fromstring(response_text)
+                all_text = tree.xpath('//text()')
+                if any('Digite o código:' in text for text in all_text):
+                    logger.warning('CAPTCHA found in response, trying with proxies')
+                    try:
+                        response_text = await get_proxy(url, headers)
+                        tree = html.fromstring(response_text)
+                    except Exception as proxy_e:
+                        logger.warning(f'Failed to attempt with proxies after CAPTCHA: {proxy_e}')
+                        return []
 
-    def _parse_versions(self, tree: html.HtmlElement, automaker: str, model: str) -> Tuple[Dict[str, str], List[str]]:
-        versions = {}
-        years = []
+                for element in tree.xpath('//div/a[normalize-space(text())]'):
+                    text = element.text.strip()
+                    href = element.get('href', '').strip()
+                    if href and not any(word in text for word in words_to_remove):
+                        versions[text] = href
+                        year_math = re.match(r'^\d{4}', text.strip())
+                        if year_math:
+                            year = year_math.group(0)
+                            if year not in ['Carregando', 'Carregando...']:
+                                years.append(year)
+                return versions, years
 
-        for element in tree.xpath('//div/a[normalize-space(text())]'):
-            text = element.text.strip()
-            href = element.get('href', '').strip()
+            elif response.status_code == 403:
+                logger.warning('Status_code: 403 - Blocked, trying with proxies')
+                try:
+                    response_text = await get_proxy(url, headers)
+                    tree = html.fromstring(response_text)
+                    for element in tree.xpath('//div/a[normalize-space(text())]'):
+                        text = element.text.strip()
+                        href = element.get('href', '').strip()
+                        if href and not any(word in text for word in words_to_remove):
+                            versions[text] = href
+                            year_math = re.match(r'^\d{4}', text.strip())
+                            if year_math:
+                                year = year_math.group(0)
+                                if year not in ['Carregando', 'Carregando...']:
+                                    years.append(year)
+                    return versions, years
+                except Exception as proxy_e:
+                    logger.warning(f'Failed to try with proxies after 403: {proxy_e}')
+                    return []
 
-            if href and not any(word in text for word in self.WORDS_TO_REMOVE):
-                versions[text] = href
+            else:
+                logger.warning(f'Initial error {response.status_code}. Trying with proxies')
+                try:
+                    response_text = await get_proxy(url, headers)
+                    tree = html.fromstring(response_text)
+                    for element in tree.xpath('//div/a[normalize-space(text())]'):
+                        text = element.text.strip()
+                        href = element.get('href', '').strip()
+                        if href and not any(word in text for word in words_to_remove):
+                            versions[text] = href
+                            year_math = re.match(r'^\d{4}', text.strip())
+                            if year_math:
+                                year = year_math.group(0)
+                                if year not in ['Carregando', 'Carregando...']:
+                                    years.append(year)
+                    return versions, years
+                except Exception as proxy_e:
+                    logger.warning(f'Failed to attempt with proxies after error {response.status_code}: {proxy_e}')
+                    return []
 
-                year_match = re.match(r'^\d{4}', text)
-                if year_match:
-                    year = year_match.group(0)
-                    if year not in years:
-                        years.append(year)
-        return versions, years
+        except httpx.RequestError as e:
+            logger.warning(f'httpx request error on initial request: {e}')
+            logger.info('Trying with proxies due to initial error')
+            try:
+                response_text = await get_proxy(url, headers)
+                tree = html.fromstring(response_text)
+                for element in tree.xpath('//div/a[normalize-space(text())]'):
+                    text = element.text.strip()
+                    href = element.get('href', '').strip()
+                    if href and not any(word in text for word in words_to_remove):
+                        versions[text] = href
+                        year_math = re.match(r'^\d{4}', text.strip())
+                        if year_math:
+                            year = year_math.group(0)
+                            if year not in ['Carregando', 'Carregando...']:
+                                years.append(year)
+                return versions, years
+            except Exception as proxy_e:
+                logger.warning(f'Failed to try with proxies after initial error: {proxy_e}')
+                return []
+
+        except asyncio.TimeoutError:
+            logger.warning('Timeout on initial request')
+            logger.info('Trying with proxies due to initial timeout')
+            try:
+                response_text = await get_proxy(url, headers)
+                tree = html.fromstring(response_text)
+                for element in tree.xpath('//div/a[normalize-space(text())]'):
+                    text = element.text.strip()
+                    href = element.get('href', '').strip()
+                    if href and not any(word in text for word in words_to_remove):
+                        versions[text] = href
+                        year_math = re.match(r'^\d{4}', text.strip())
+                        if year_math:
+                            year = year_math.group(0)
+                            if year not in ['Carregando', 'Carregando...']:
+                                years.append(year)
+                return versions, years
+            except Exception as proxy_e:
+                logger.warning(f'Failed to attempt with proxies after initial timeout: {proxy_e}')
+                return []
+
+        except Exception as e:
+            logger.warning(f'Unexpected error in main function: {e}')
+            return []
