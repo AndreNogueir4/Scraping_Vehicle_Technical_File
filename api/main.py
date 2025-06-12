@@ -4,6 +4,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from api.routes.vehicles import router as vehicle_router
 from api.routes.users import router as users_router
+from api.routes.admin import router as admin_router
 from api.middleware.auth import get_current_user
 from api.schemas.users import UserInDB
 from api.limiter import limiter
@@ -30,6 +31,7 @@ async def verify_api_key(request: Request, current_user: UserInDB = Depends(get_
 
 app.include_router(vehicle_router, prefix='/vehicles', tags=['vehicles'])
 app.include_router(users_router, prefix='/users', tags=['users'])
+app.include_router(admin_router, prefix='/admin', tags=['admin'])
 
 @app.get('/')
 async def root():
