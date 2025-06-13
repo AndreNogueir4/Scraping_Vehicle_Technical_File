@@ -29,7 +29,7 @@ def generate_headers_user_agent(automaker):
     return headers
 
 @pytest.mark.asyncio
-async def get_version_years(automaker, model):
+async def test_get_version_years(automaker, model):
     words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
     versions = {}
     years = []
@@ -75,9 +75,3 @@ async def get_version_years(automaker, model):
 
         except Exception as e:
             return [e]
-
-if __name__ == '__main__':
-    Automaker = 'chevrolet'
-    Model = 's10'
-    Result = asyncio.run(get_version_years(Automaker, Model))
-    print(Result)

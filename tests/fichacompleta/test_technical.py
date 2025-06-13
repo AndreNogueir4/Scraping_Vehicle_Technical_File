@@ -27,7 +27,7 @@ def generate_headers_user_agent(automaker, model):
     return headers
 
 @pytest.mark.asyncio
-async def get_technical_sheet(automaker, model, href):
+async def test_get_technical_sheet(automaker, model, href):
     url = f'https://www.fichacompleta.com.br{href}'
     headers = generate_headers_user_agent(automaker, model)
 
@@ -67,10 +67,3 @@ async def get_technical_sheet(automaker, model, href):
 
         except Exception as e:
             return [e]
-
-if __name__ == '__main__':
-    Automaker = 'chevrolet'
-    Model = 's10'
-    Href = '/carros/chevrolet/s10-ltz-2-5-4x4-at-cd-2018'
-    Result = asyncio.run(get_technical_sheet(Automaker, Model, Href))
-    print(Result)

@@ -28,7 +28,7 @@ def generate_headers_user_agent():
     return headers
 
 @pytest.mark.asyncio
-async def get_automakers():
+async def test_get_automakers():
     words_to_remove = ['Quem Somos', 'Contato', 'Política de Privacidade', 'Ver mais']
     url = 'https://www.fichacompleta.com.br/carros/marcas/'
     headers = generate_headers_user_agent()
@@ -62,7 +62,3 @@ async def get_automakers():
 
         except Exception as e:
             return [e]
-
-if __name__ == '__main__':
-    result = asyncio.run(get_automakers())
-    print(result)
