@@ -9,20 +9,21 @@ router = APIRouter()
 
 @router.get('/users', response_model=list[UserResponse])
 async def list_users(admin_user: dict = Depends(get_admin_user)):
-    users = users_collection.find()
-    return [
-        UserResponse(
-            id=str(user['_id']),
-            username=user['username'],
-            email=user['email'],
-            api_key=user['api_key'],
-            is_active=user.get('is_active', True),
-            is_admin=user.get('is_admin', False),
-            created_at=user['created_at'],
-            last_used=user.get('last_used'),
+    users = []
+    async for user in users_collection.find():
+        users.append(
+            UserResponse(
+                id=str(user['_id']),
+                username=user['username'],
+                email=user['email'],
+                api_key=user['api_key'],
+                is_active=user.get('is_active', True),
+                is_admin=user.get('is_admin', False),
+                created_at=user['created_at'],
+                last_used=user.get('last_used'),
+            )
         )
-        for user in users
-    ]
+    return users
 
 @router.patch('/users/{user_id}/deactivate', response_model=UserResponse)
 async def deactivate_user(user_id: str = Path(..., title='ID do usuário'),
@@ -88,14 +89,14 @@ async def get_request_logs(date: str | None = Query(None, description='Data no f
 
         query['timestamp'] = {'$gte': start, '$lt': end}
 
-    logs = request_logs_collection.find(query).sort('timestamp', -1)
+    logs_cursor = request_logs_collection.find(query).sort('timestamp', -1)
 
-    return [
-        RequestLog(
+    logs = []
+    async for log in logs_cursor:
+        logs.append(RequestLog(
             endpoint=log['endpoint'],
             params=log.get('params', {}),
             timestamp=log['timestamp'],
             user_id=str(log['user_id']),
-        )
-        for log in logs
-    ]
+        ))
+    return logs
